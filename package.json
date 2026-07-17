@@ -46,7 +46,8 @@
     "publish": {
       "provider": "github",
       "owner": "foulehistory",
-      "repo": "kiln-dashboard"
+      "repo": "kiln-dashboard",
+      "releaseType": "release"
     }
   }
 }
