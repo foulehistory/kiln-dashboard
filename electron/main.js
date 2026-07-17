@@ -285,26 +285,48 @@ ipcMain.on("kiln:exec-close", (_e, { sessionId }) => {
 
 function githubJson(urlPath) {
   return new Promise((resolve, reject) => {
+    const headers = { "User-Agent": "kiln-dashboard", Accept: "application/vnd.github+json" };
+    // Unauthenticated GitHub API calls are capped at 60/hour *per IP*,
+    // shared across everything on that network - trivially exhausted by
+    // a handful of manual retries during first-run setup (this was hit
+    // for real during development: a burst of retries during a live
+    // debugging session ate a full hour's budget in about two minutes).
+    // An optional token - even one with zero scopes, since this only
+    // ever reads public repos - raises that to 5000/hour.
+    if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
     https
-      .get(
-        { host: "api.github.com", path: urlPath, headers: { "User-Agent": "kiln-dashboard", Accept: "application/vnd.github+json" } },
-        (res) => {
-          const chunks = [];
-          res.on("data", (c) => chunks.push(c));
-          res.on("end", () => {
-            if (res.statusCode !== 200) {
-              reject(new Error(`GitHub API ${urlPath}: HTTP ${res.statusCode}`));
-              return;
-            }
-            try {
-              resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
-            } catch (e) {
-              reject(e);
-            }
-          });
-        },
-      )
+      .get({ host: "api.github.com", path: urlPath, headers }, (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          if (res.statusCode !== 200) {
+            reject(new Error(`GitHub API ${urlPath}: HTTP ${res.statusCode}`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      })
       .on("error", reject);
+  });
+}
+
+// First-run setup can legitimately need several retries in a row (a
+// missing asset, a transient network blip, a user impatiently clicking
+// Retry) - without this, each one burns another call against the same
+// 60/hour unauthenticated budget every *other* GitHub lookup in this
+// file also shares. A short TTL is enough to absorb a burst of retries
+// without ever showing genuinely stale data for more than a few minutes.
+const githubCache = new Map();
+function githubJsonCached(urlPath, ttlMs = 5 * 60 * 1000) {
+  const cached = githubCache.get(urlPath);
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.data);
+  return githubJson(urlPath).then((data) => {
+    githubCache.set(urlPath, { data, expiresAt: Date.now() + ttlMs });
+    return data;
   });
 }
 
@@ -324,7 +346,7 @@ ipcMain.handle("kiln:check-kilnd-update", async () => {
   const current = await apiRequest("GET", "/version");
   const currentVersion = current.status === 200 && current.body?.version ? current.body.version : null;
 
-  const release = await githubJson(`/repos/${KILND_REPO}/releases/latest`);
+  const release = await githubJsonCached(`/repos/${KILND_REPO}/releases/latest`);
   const latestVersion = String(release.tag_name || "").replace(/^v/, "");
   const asset = (release.assets || []).find((a) => a.name === "kiln-linux-x86_64.tar.gz");
 
@@ -354,7 +376,7 @@ chmod +x "$STORE/bin/kiln" "$STORE/bin/kiln-compose" "$STORE/bin/kilnd"
 }
 
 async function latestKilnReleaseDownloadUrl() {
-  const release = await githubJson(`/repos/${KILND_REPO}/releases/latest`);
+  const release = await githubJsonCached(`/repos/${KILND_REPO}/releases/latest`);
   const asset = (release.assets || []).find((a) => a.name === "kiln-linux-x86_64.tar.gz");
   if (!asset) throw new Error(`latest ${KILND_REPO} release has no kiln-linux-x86_64.tar.gz asset`);
   return asset.browser_download_url;
@@ -486,7 +508,7 @@ function runSetupHelper() {
 }
 
 async function importProvisionedDistro() {
-  const release = await githubJson(`/repos/${KILND_REPO}/releases/tags/${WSL_ROOTFS_RELEASE_TAG}`);
+  const release = await githubJsonCached(`/repos/${KILND_REPO}/releases/tags/${WSL_ROOTFS_RELEASE_TAG}`);
   const asset = (release.assets || []).find((a) => a.name === WSL_ROOTFS_ASSET_NAME);
   if (!asset) throw new Error(`release ${WSL_ROOTFS_RELEASE_TAG} has no ${WSL_ROOTFS_ASSET_NAME} asset`);
 
