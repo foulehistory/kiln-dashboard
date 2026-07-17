@@ -591,6 +591,17 @@ select:hover {
   font-size: 12px;
 }
 
+.update-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 5px;
+  vertical-align: middle;
+  box-shadow: 0 0 4px 1px var(--accent-soft);
+}
+
 .updates-check-btn {
   width: 100%;
   display: flex;

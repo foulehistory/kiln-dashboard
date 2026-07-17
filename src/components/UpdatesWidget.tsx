@@ -25,6 +25,13 @@ export default function UpdatesWidget() {
     };
   }, []);
 
+  // Silent check on launch, so an available update shows up on its own
+  // instead of staying hidden behind a button nobody thinks to click.
+  useEffect(() => {
+    check();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function check() {
     setChecking(true);
     const [d, k] = await Promise.all([window.kiln.checkDashboardUpdate(), window.kiln.checkKilndUpdate().catch((e) => ({ currentVersion: null, latestVersion: null, available: false, error: String(e) }))]);
@@ -78,7 +85,10 @@ export default function UpdatesWidget() {
       {checked && (
         <div className="updates-results">
           <div className="updates-row">
-            <span className="muted">Dashboard</span>
+            <span className="muted">
+              {dashboard?.available && <span className="update-dot" />}
+              Dashboard
+            </span>
             <span className="mono">{dashboard?.currentVersion ?? "?"}</span>
           </div>
           {dashboard?.available && dashboardPhase === "idle" && (
@@ -105,7 +115,10 @@ export default function UpdatesWidget() {
           )}
 
           <div className="updates-row" style={{ marginTop: 8 }}>
-            <span className="muted">kilnd</span>
+            <span className="muted">
+              {kilnd?.available && <span className="update-dot" />}
+              kilnd
+            </span>
             <span className="mono">{kilnd?.currentVersion ?? "?"}</span>
           </div>
           {kilnd?.error && <div className="updates-error">{kilnd.error}</div>}
