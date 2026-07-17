@@ -47,6 +47,11 @@ export default function ContainersView() {
     await window.kiln.stop(id);
     setBusy(null);
   }
+  async function start(id: string) {
+    setBusy(id);
+    await window.kiln.startExisting(id);
+    setBusy(null);
+  }
   async function remove(id: string) {
     setBusy(id);
     await window.kiln.remove(id);
@@ -117,6 +122,11 @@ export default function ContainersView() {
                       </span>
                     ) : (
                       <>
+                        {running.length < g.containers.length && (
+                          <button onClick={() => g.containers.filter((c) => c.status !== "running").forEach((c) => start(c.id))}>
+                            Start
+                          </button>
+                        )}
                         {running.length > 0 && <button onClick={() => running.forEach((c) => stop(c.id))}>Stop</button>}
                         <button className="danger" onClick={() => g.containers.forEach((c) => remove(c.id))}>
                           Remove
@@ -152,6 +162,7 @@ export default function ContainersView() {
                       </span>
                     ) : (
                       <>
+                        {!running && <button onClick={() => start(c.id)}>Start</button>}
                         {running && <button onClick={() => stop(c.id)}>Stop</button>}
                         <button className="danger" onClick={() => remove(c.id)}>
                           Remove

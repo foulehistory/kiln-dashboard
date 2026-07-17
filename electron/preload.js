@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("kiln", {
   stats: (id) => ipcRenderer.invoke("kiln:stats", id),
   logs: (id) => ipcRenderer.invoke("kiln:logs", id),
   stop: (id) => ipcRenderer.invoke("kiln:stop", id),
+  startExisting: (id) => ipcRenderer.invoke("kiln:start-existing", id),
   remove: (id) => ipcRenderer.invoke("kiln:remove", id),
   run: (spec) => ipcRenderer.invoke("kiln:run", spec),
 

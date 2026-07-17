@@ -67,6 +67,7 @@ export interface KilnApi {
   stats(id: string): Promise<ApiResult<Stats>>;
   logs(id: string): Promise<ApiResult<string>>;
   stop(id: string): Promise<ApiResult<null>>;
+  startExisting(id: string): Promise<ApiResult<ContainerInfo>>;
   remove(id: string): Promise<ApiResult<null>>;
   run(spec: RunSpec): Promise<ApiResult<ContainerInfo>>;
 

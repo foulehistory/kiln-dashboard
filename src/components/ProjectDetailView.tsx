@@ -69,6 +69,11 @@ export default function ProjectDetailView({
     await window.kiln.stop(id);
     setBusy(null);
   }
+  async function start(id: string) {
+    setBusy(id);
+    await window.kiln.startExisting(id);
+    setBusy(null);
+  }
   async function remove(id: string) {
     setBusy(id);
     await window.kiln.remove(id);
@@ -77,6 +82,9 @@ export default function ProjectDetailView({
   async function stopAll() {
     for (const c of containers.filter((c) => c.status === "running")) await stop(c.id);
   }
+  async function startAll() {
+    for (const c of containers.filter((c) => c.status !== "running")) await start(c.id);
+  }
   async function removeAll() {
     for (const c of containers) await remove(c.id);
     onBack();
@@ -84,6 +92,7 @@ export default function ProjectDetailView({
 
   const selected = containers.find((c) => c.id === selectedId) ?? null;
   const anyRunning = containers.some((c) => c.status === "running");
+  const anyStopped = containers.some((c) => c.status !== "running");
 
   return (
     <div>
@@ -105,6 +114,7 @@ export default function ProjectDetailView({
             </span>
           ) : (
             <>
+              {anyStopped && <button onClick={startAll}>Start all</button>}
               {anyRunning && <button onClick={stopAll}>Stop all</button>}
               <button className="danger" onClick={removeAll}>
                 Remove all
@@ -137,6 +147,16 @@ export default function ProjectDetailView({
                     </span>
                   ) : (
                     <>
+                      {!running && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            start(c.id);
+                          }}
+                        >
+                          Start
+                        </button>
+                      )}
                       {running && (
                         <button
                           onClick={(e) => {

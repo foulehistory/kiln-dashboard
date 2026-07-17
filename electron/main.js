@@ -110,6 +110,7 @@ ipcMain.handle("kiln:networks", () => apiRequest("GET", "/networks"));
 ipcMain.handle("kiln:stats", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/stats`));
 ipcMain.handle("kiln:logs", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/logs`));
 ipcMain.handle("kiln:stop", (_e, id) => apiRequest("POST", `/containers/${encodeURIComponent(id)}/stop`));
+ipcMain.handle("kiln:start-existing", (_e, id) => apiRequest("POST", `/containers/${encodeURIComponent(id)}/start`));
 ipcMain.handle("kiln:remove", (_e, id) => apiRequest("DELETE", `/containers/${encodeURIComponent(id)}`));
 ipcMain.handle("kiln:run", (_e, spec) => apiRequest("POST", "/containers", spec));
 
