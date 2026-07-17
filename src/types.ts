@@ -50,6 +50,10 @@ export interface RunSpec {
   volumes?: string[];
   network?: string;
   environment?: [string, string][];
+  memory?: string;
+  cpus?: number;
+  ports?: string[];
+  restart?: string;
 }
 
 export interface UpdateStatus {
@@ -63,7 +67,10 @@ export interface UpdateStatus {
 export interface KilnApi {
   containers(): Promise<ApiResult<ContainerInfo[]>>;
   images(): Promise<ApiResult<ImageInfo[]>>;
+  removeImage(id: string): Promise<ApiResult<{ message: string } | string>>;
   networks(): Promise<ApiResult<NetworkInfo[]>>;
+  createNetwork(name: string, subnet?: string): Promise<ApiResult<{ ok: boolean } | string>>;
+  removeNetwork(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   stats(id: string): Promise<ApiResult<Stats>>;
   logs(id: string): Promise<ApiResult<string>>;
   stop(id: string): Promise<ApiResult<null>>;

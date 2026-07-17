@@ -4,6 +4,7 @@ import { groupByProject } from "../projects";
 import { formatBytes } from "../format";
 import ProjectDetailView from "./ProjectDetailView";
 import ConfirmDialog from "./ConfirmDialog";
+import NewContainerModal from "./NewContainerModal";
 import type { ContainerInfo, Stats } from "../types";
 
 async function fetchContainers() {
@@ -20,6 +21,7 @@ export default function ContainersView() {
   const [busy, setBusy] = useState<string | null>(null);
   const [openProject, setOpenProject] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
+  const [showNewContainer, setShowNewContainer] = useState(false);
 
   const runningIds = (containers ?? [])
     .filter((c) => c.status === "running")
@@ -72,7 +74,12 @@ export default function ContainersView() {
 
   return (
     <div>
-      <h1>Containers</h1>
+      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+        <h1 style={{ margin: 0 }}>Containers</h1>
+        <button className="primary" onClick={() => setShowNewContainer(true)}>
+          + New container
+        </button>
+      </div>
       {error && <div className="empty-state">Could not reach kilnd - is it running? ({error})</div>}
       {!error && (!containers || containers.length === 0) && (
         <div className="empty-state">No containers yet - start one with `kiln run` or `kiln-compose up`.</div>
@@ -190,6 +197,9 @@ export default function ContainersView() {
         </table>
       )}
       {confirm && <ConfirmDialog message={confirm.message} onConfirm={confirm.action} onCancel={() => setConfirm(null)} />}
+      {showNewContainer && (
+        <NewContainerModal onClose={() => setShowNewContainer(false)} onCreated={() => {}} />
+      )}
     </div>
   );
 }
