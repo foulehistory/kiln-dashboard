@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePolling } from "../usePolling";
 import { serviceName } from "../projects";
 import { formatBytes } from "../format";
+import ConfirmDialog from "./ConfirmDialog";
 import type { ContainerInfo, Stats } from "../types";
 
 export default function ProjectDetailView({
@@ -16,6 +17,7 @@ export default function ProjectDetailView({
   const [selectedId, setSelectedId] = useState<string | null>(containers[0]?.id ?? null);
   const [busy, setBusy] = useState<string | null>(null);
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
+  const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
 
   useEffect(() => {
     if (!selectedId && containers.length > 0) setSelectedId(containers[0].id);
@@ -116,7 +118,15 @@ export default function ProjectDetailView({
             <>
               {anyStopped && <button onClick={startAll}>Start all</button>}
               {anyRunning && <button onClick={stopAll}>Stop all</button>}
-              <button className="danger" onClick={removeAll}>
+              <button
+                className="danger"
+                onClick={() =>
+                  setConfirm({
+                    message: `Remove all ${containers.length} service${containers.length === 1 ? "" : "s"} in "${project}"?`,
+                    action: removeAll,
+                  })
+                }
+              >
                 Remove all
               </button>
             </>
@@ -171,7 +181,7 @@ export default function ProjectDetailView({
                         className="danger"
                         onClick={(e) => {
                           e.stopPropagation();
-                          remove(c.id);
+                          setConfirm({ message: `Remove "${serviceName(c, project)}"?`, action: () => remove(c.id) });
                         }}
                       >
                         Remove
@@ -209,6 +219,7 @@ export default function ProjectDetailView({
           )}
         </div>
       </div>
+      {confirm && <ConfirmDialog message={confirm.message} onConfirm={confirm.action} onCancel={() => setConfirm(null)} />}
     </div>
   );
 }

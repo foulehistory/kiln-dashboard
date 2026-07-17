@@ -3,6 +3,7 @@ import { usePolling } from "../usePolling";
 import { groupByProject } from "../projects";
 import { formatBytes } from "../format";
 import ProjectDetailView from "./ProjectDetailView";
+import ConfirmDialog from "./ConfirmDialog";
 import type { ContainerInfo, Stats } from "../types";
 
 async function fetchContainers() {
@@ -18,6 +19,7 @@ export default function ContainersView() {
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [openProject, setOpenProject] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
 
   const runningIds = (containers ?? [])
     .filter((c) => c.status === "running")
@@ -128,7 +130,15 @@ export default function ContainersView() {
                           </button>
                         )}
                         {running.length > 0 && <button onClick={() => running.forEach((c) => stop(c.id))}>Stop</button>}
-                        <button className="danger" onClick={() => g.containers.forEach((c) => remove(c.id))}>
+                        <button
+                          className="danger"
+                          onClick={() =>
+                            setConfirm({
+                              message: `Remove all ${g.containers.length} service${g.containers.length === 1 ? "" : "s"} in "${g.project}"?`,
+                              action: () => g.containers.forEach((c) => remove(c.id)),
+                            })
+                          }
+                        >
                           Remove
                         </button>
                       </>
@@ -164,7 +174,10 @@ export default function ContainersView() {
                       <>
                         {!running && <button onClick={() => start(c.id)}>Start</button>}
                         {running && <button onClick={() => stop(c.id)}>Stop</button>}
-                        <button className="danger" onClick={() => remove(c.id)}>
+                        <button
+                          className="danger"
+                          onClick={() => setConfirm({ message: `Remove "${c.name}"?`, action: () => remove(c.id) })}
+                        >
                           Remove
                         </button>
                       </>
@@ -176,6 +189,7 @@ export default function ContainersView() {
           </tbody>
         </table>
       )}
+      {confirm && <ConfirmDialog message={confirm.message} onConfirm={confirm.action} onCancel={() => setConfirm(null)} />}
     </div>
   );
 }

@@ -31,12 +31,13 @@
   "build": {
     "appId": "dev.kiln.dashboard",
     "productName": "Kiln Dashboard",
-    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "files": ["dist/**/*", "electron/**/*", "build/**/*", "package.json"],
     "directories": {
       "output": "dist-release"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
