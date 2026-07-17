@@ -7,7 +7,7 @@
 
 const { app, BrowserWindow, ipcMain, Menu } = require("electron");
 const { autoUpdater } = require("electron-updater");
-const { execFile } = require("child_process");
+const { execFile, spawn } = require("child_process");
 const https = require("https");
 const http = require("http");
 const path = require("path");
@@ -70,6 +70,56 @@ function apiRequest(method, urlPath, body) {
   });
 }
 
+// Launched lazily on startup if kilnd isn't already reachable - it's an
+// *optional* daemon (see kilnd's own module docs), so there's nothing to
+// undo on quit: leaving it running is what lets containers started while
+// the dashboard was open keep going, and reopening the dashboard later
+// just finds it still there instead of relaunching it. Prefers an
+// installed binary under $KILN_STORE/bin (what the update-apply flow
+// below installs), falling back to this repo's own dev build - the same
+// two paths `bin/kiln-launch.sh` tries, in the same order, for the same
+// reason (this is also the dev/build machine, not just an install target).
+//
+// The tricky part is Windows<->WSL2 process lifetime, not the shell
+// script: a one-shot `wsl.exe -d ... -e ...` invocation tears down the
+// whole WSL interop session (and everything it spawned) once that
+// invocation's own top-level process exits - `nohup`/`setsid`/`disown`
+// on the Linux side don't survive that, since the teardown isn't a
+// normal SIGHUP from a dying parent, it's WSL's own session cleanup
+// (confirmed by testing: identical script, only difference is whether
+// the *Windows* process is kept alive). The fix is to never let the
+// Windows-side `wsl.exe` process exit at all: spawn it `detached` +
+// `unref()`'d so it outlives this dashboard, and have the WSL-side
+// script `exec` straight into kilnd (replacing the shell) instead of
+// backgrounding it - kilnd then runs as that session's own foreground
+// process for as long as it stays up.
+function launchKilndInWsl() {
+  const script = `
+STORE="\${KILN_STORE:-$HOME/.kiln}"
+B="$STORE/bin/kilnd"
+[ -x "$B" ] || B="/mnt/e/kiln/target/debug/kilnd"
+if [ -x "$B" ]; then
+  exec "$B" > "$STORE/kilnd.log" 2>&1
+fi
+`;
+  const child = spawn("wsl.exe", ["-d", WSL_DISTRO, "-u", "root", "-e", "bash", "-c", script], {
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
+}
+
+async function ensureKilndRunning() {
+  if ((await apiRequest("GET", "/version")).status === 200) return;
+  launchKilndInWsl();
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    if ((await apiRequest("GET", "/version")).status === 200) return;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  console.log("[kilnd auto-start] launched but didn't come up within 8s");
+}
+
 let mainWindow;
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -97,7 +147,10 @@ function createWindow() {
 // dev-tools-adjacent items) has no purpose here.
 Menu.setApplicationMenu(null);
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  await ensureKilndRunning();
+  createWindow();
+});
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
@@ -240,7 +293,13 @@ ipcMain.handle("kiln:check-kilnd-update", async () => {
 });
 
 ipcMain.handle("kiln:apply-kilnd-update", async (_e, downloadUrl) => {
-  const script = `
+  // Only the download/install half runs through `runInWsl` (so failures -
+  // a bad URL, no network - actually surface to the caller); restarting
+  // kilnd itself goes through the same detached-`wsl.exe` launch
+  // `ensureKilndRunning` uses, for the reason explained on
+  // `launchKilndInWsl` above: a `nohup ... &` backgrounded from inside
+  // this one-shot install script wouldn't survive it exiting.
+  const installScript = `
 set -e
 STORE="\${KILN_STORE:-$HOME/.kiln}"
 mkdir -p "$STORE/bin"
@@ -249,12 +308,9 @@ tar -xzf /tmp/kiln-release.tar.gz -C "$STORE/bin" kiln kiln-compose kilnd
 chmod +x "$STORE/bin/kiln" "$STORE/bin/kiln-compose" "$STORE/bin/kilnd"
 pkill -f "$STORE/bin/kilnd" 2>/dev/null || true
 sleep 1
-nohup "$STORE/bin/kilnd" > "$STORE/kilnd.log" 2>&1 &
-disown
-sleep 1
-echo restarted
 `;
-  await runInWsl(script);
+  await runInWsl(installScript);
+  launchKilndInWsl();
   return { ok: true };
 });
 
