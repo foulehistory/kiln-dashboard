@@ -1,0 +1,194 @@
+import { useEffect, useRef, useState } from "react";
+import { usePolling } from "../usePolling";
+import { serviceName } from "../projects";
+import { formatBytes } from "../format";
+import type { ContainerInfo, Stats } from "../types";
+
+export default function ProjectDetailView({
+  project,
+  containers,
+  onBack,
+}: {
+  project: string;
+  containers: ContainerInfo[];
+  onBack: () => void;
+}) {
+  const [selectedId, setSelectedId] = useState<string | null>(containers[0]?.id ?? null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
+
+  useEffect(() => {
+    if (!selectedId && containers.length > 0) setSelectedId(containers[0].id);
+    if (selectedId && !containers.some((c) => c.id === selectedId)) {
+      setSelectedId(containers[0]?.id ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containers]);
+
+  const runningIds = containers
+    .filter((c) => c.status === "running")
+    .map((c) => c.id)
+    .join(",");
+
+  usePolling(
+    async () => {
+      const ids = runningIds ? runningIds.split(",") : [];
+      const entries = await Promise.all(
+        ids.map(async (id) => {
+          const r = await window.kiln.stats(id);
+          return [id, r.body] as const;
+        }),
+      );
+      const map: Record<string, Stats> = {};
+      for (const [id, s] of entries) if (s) map[id] = s;
+      setStatsMap(map);
+      return map;
+    },
+    2000,
+    [runningIds],
+  );
+
+  const { data: log } = usePolling(
+    async () => {
+      if (!selectedId) return "";
+      const r = await window.kiln.logs(selectedId);
+      return typeof r.body === "string" ? r.body : "";
+    },
+    1500,
+    [selectedId],
+  );
+
+  const logRef = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [log]);
+
+  async function stop(id: string) {
+    setBusy(id);
+    await window.kiln.stop(id);
+    setBusy(null);
+  }
+  async function remove(id: string) {
+    setBusy(id);
+    await window.kiln.remove(id);
+    setBusy(null);
+  }
+  async function stopAll() {
+    for (const c of containers.filter((c) => c.status === "running")) await stop(c.id);
+  }
+  async function removeAll() {
+    for (const c of containers) await remove(c.id);
+    onBack();
+  }
+
+  const selected = containers.find((c) => c.id === selectedId) ?? null;
+  const anyRunning = containers.some((c) => c.status === "running");
+
+  return (
+    <div>
+      <div className="detail-header">
+        <button className="back-btn" onClick={onBack}>
+          ←
+        </button>
+        <div>
+          <h1 style={{ margin: 0 }}>{project}</h1>
+          <div className="muted">
+            {containers.length} service{containers.length === 1 ? "" : "s"}
+          </div>
+        </div>
+        <div style={{ marginLeft: "auto" }}>
+          {busy !== null ? (
+            <span className="muted">
+              <span className="spinner" />
+              working…
+            </span>
+          ) : (
+            <>
+              {anyRunning && <button onClick={stopAll}>Stop all</button>}
+              <button className="danger" onClick={removeAll}>
+                Remove all
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="detail-layout">
+        <div className="service-list">
+          {containers.map((c) => {
+            const running = c.status === "running";
+            const s = statsMap[c.id];
+            return (
+              <div
+                key={c.id}
+                className={`service-item${c.id === selectedId ? " active" : ""}`}
+                onClick={() => setSelectedId(c.id)}
+              >
+                <span className={`status-dot ${running ? "running" : "exited"}`} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="service-item-name">{serviceName(c, project)}</div>
+                  <div className="muted mono service-item-sub">{c.ip ?? c.status}</div>
+                </div>
+                <div className="service-item-actions">
+                  {busy === c.id ? (
+                    <span className="muted">
+                      <span className="spinner" />
+                    </span>
+                  ) : (
+                    <>
+                      {running && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            stop(c.id);
+                          }}
+                        >
+                          Stop
+                        </button>
+                      )}
+                      <button
+                        className="danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          remove(c.id);
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </>
+                  )}
+                </div>
+                {s && (
+                  <div className="muted service-item-stats">
+                    {(s.cpu_usage_usec / 1000).toFixed(0)}ms &middot; {formatBytes(s.memory_current_bytes)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="log-panel">
+          {selected ? (
+            <>
+              <div className="log-panel-header">
+                <span className={`badge ${selected.status === "running" ? "running" : "exited"}`}>{selected.status}</span>
+                <span className="mono">{serviceName(selected, project)}</span>
+                <span className="muted mono">{selected.image}</span>
+                <span className="muted mono" style={{ marginLeft: "auto" }}>
+                  {selected.id.slice(0, 12)}
+                </span>
+              </div>
+              <pre className="log-pre" ref={logRef}>
+                {log || "(no output yet)"}
+              </pre>
+            </>
+          ) : (
+            <div className="empty-state">No service selected.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

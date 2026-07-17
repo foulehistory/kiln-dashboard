@@ -1,0 +1,51 @@
+{
+  "name": "kiln-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron + React dashboard for Kiln: live containers, images, network topology, and an in-browser exec terminal.",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "electron": "electron .",
+    "dist": "npm run build && electron-builder --publish=never",
+    "release": "npm run build && electron-builder --publish=always"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "electron-updater": "^6.3.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.1"
+  },
+  "build": {
+    "appId": "dev.kiln.dashboard",
+    "productName": "Kiln Dashboard",
+    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "directories": {
+      "output": "dist-release"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "foulehistory",
+      "repo": "kiln-dashboard"
+    }
+  }
+}

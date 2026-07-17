@@ -1,0 +1,29 @@
+name: release
+
+# Triggered by pushing a tag like "v0.2.0". Builds the Windows installer
+# and publishes it to a GitHub Release - electron-builder's own GitHub
+# publish target handles both. This is what electron-updater (wired up in
+# electron/main.js) checks against for the dashboard's self-update.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
