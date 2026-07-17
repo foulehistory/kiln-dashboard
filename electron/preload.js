@@ -34,6 +34,10 @@ contextBridge.exposeInMainWorld("kiln", {
     return () => ipcRenderer.removeListener("kiln:exec-closed", listener);
   },
 
+  setupDetect: () => ipcRenderer.invoke("kiln:setup-detect"),
+  setupAdvance: () => ipcRenderer.invoke("kiln:setup-advance"),
+  setupRestartWindows: () => ipcRenderer.invoke("kiln:setup-restart-windows"),
+
   checkKilndUpdate: () => ipcRenderer.invoke("kiln:check-kilnd-update"),
   applyKilndUpdate: (downloadUrl) => ipcRenderer.invoke("kiln:apply-kilnd-update", downloadUrl),
   checkDashboardUpdate: () => ipcRenderer.invoke("kiln:check-dashboard-update"),

@@ -11,6 +11,7 @@ const { execFile, spawn } = require("child_process");
 const https = require("https");
 const http = require("http");
 const path = require("path");
+const fs = require("fs");
 const os = require("os");
 
 // kilnd's own repo (separate from this dashboard's repo - see the two
@@ -19,7 +20,45 @@ const os = require("os");
 // electron-updater checks (that one comes from package.json's own
 // `build.publish` config).
 const KILND_REPO = "foulehistory/kiln";
-const WSL_DISTRO = "Ubuntu";
+
+// The distro the first-run setup wizard (below) provisions from scratch
+// when nothing exists yet - always this exact name, never an existing
+// distro the user already has, so setup only ever has to ask "does *our*
+// distro exist and is it in the state we expect" instead of judging
+// whether some arbitrary existing distro is usable (glibc, free of
+// unrelated state, etc).
+const PROVISIONED_DISTRO = "kiln";
+
+// Which distro ordinary kilnd operations (launch, updates) target.
+// Defaults to "Ubuntu" - this project's own dev workflow assumes a
+// manually-configured dev distro by that name - and switches to
+// `PROVISIONED_DISTRO` once first-run setup successfully provisions one
+// (persisted so it sticks across restarts; see `readConfig`/`writeConfig`).
+let cachedWslDistro = null;
+function getWslDistro() {
+  if (cachedWslDistro) return cachedWslDistro;
+  cachedWslDistro = readConfig().wslDistro || "Ubuntu";
+  return cachedWslDistro;
+}
+
+function configPath() {
+  return path.join(app.getPath("userData"), "config.json");
+}
+
+function readConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(configPath(), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeConfig(patch) {
+  const merged = { ...readConfig(), ...patch };
+  fs.mkdirSync(path.dirname(configPath()), { recursive: true });
+  fs.writeFileSync(configPath(), JSON.stringify(merged, null, 2));
+  if ("wslDistro" in patch) cachedWslDistro = patch.wslDistro;
+}
 
 // `kilnd` (necessarily Linux-only - it manages namespaces/cgroups) always
 // runs inside WSL2 even when this dashboard doesn't. Two ways to reach it:
@@ -102,7 +141,7 @@ if [ -x "$B" ]; then
   exec "$B" > "$STORE/kilnd.log" 2>&1
 fi
 `;
-  const child = spawn("wsl.exe", ["-d", WSL_DISTRO, "-u", "root", "-e", "bash", "-c", script], {
+  const child = spawn("wsl.exe", ["-d", getWslDistro(), "-u", "root", "-e", "bash", "-c", script], {
     detached: true,
     stdio: "ignore",
   });
@@ -147,8 +186,13 @@ function createWindow() {
 // dev-tools-adjacent items) has no purpose here.
 Menu.setApplicationMenu(null);
 
-app.whenReady().then(async () => {
-  await ensureKilndRunning();
+// Opens the window immediately rather than waiting on kilnd first - on a
+// fresh machine kilnd doesn't exist yet at all, and the renderer needs a
+// window to show the first-run setup wizard in before that's even true.
+// `ensureKilndRunning()` now happens as setup's own final "ready" step
+// (see `kiln:setup-advance` above); the renderer drives that by calling
+// `kiln:setup-detect`/`kiln:setup-advance` on mount.
+app.whenReady().then(() => {
   createWindow();
 });
 app.on("window-all-closed", () => {
@@ -264,9 +308,9 @@ function githubJson(urlPath) {
   });
 }
 
-function runInWsl(script) {
+function runInWsl(script, distro = getWslDistro()) {
   return new Promise((resolve, reject) => {
-    execFile("wsl.exe", ["-d", WSL_DISTRO, "-u", "root", "-e", "bash", "-c", script], { timeout: 120000 }, (err, stdout, stderr) => {
+    execFile("wsl.exe", ["-d", distro, "-u", "root", "-e", "bash", "-c", script], { timeout: 120000 }, (err, stdout, stderr) => {
       if (err) {
         reject(new Error(stderr || err.message));
       } else {
@@ -292,6 +336,30 @@ ipcMain.handle("kiln:check-kilnd-update", async () => {
   };
 });
 
+// Shared by the manual "update kilnd" flow below and first-run setup's
+// provisioning step: download the runtime release tarball and extract
+// the binaries into $KILN_STORE/bin. The tarball's own layout (set by
+// the runtime repo's release.yml) is `bin/{kiln,kiln-compose,kilnd}` +
+// `base-image/{Kilnfile,bin/}` - extracting relative to $STORE directly
+// lands both where each consumer expects them, in one `tar` call.
+function installKilnBinariesScript(downloadUrl) {
+  return `
+set -e
+STORE="\${KILN_STORE:-$HOME/.kiln}"
+mkdir -p "$STORE"
+curl -fsSL "${downloadUrl}" -o /tmp/kiln-release.tar.gz
+tar -xzf /tmp/kiln-release.tar.gz -C "$STORE" bin/kiln bin/kiln-compose bin/kilnd base-image
+chmod +x "$STORE/bin/kiln" "$STORE/bin/kiln-compose" "$STORE/bin/kilnd"
+`;
+}
+
+async function latestKilnReleaseDownloadUrl() {
+  const release = await githubJson(`/repos/${KILND_REPO}/releases/latest`);
+  const asset = (release.assets || []).find((a) => a.name === "kiln-linux-x86_64.tar.gz");
+  if (!asset) throw new Error(`latest ${KILND_REPO} release has no kiln-linux-x86_64.tar.gz asset`);
+  return asset.browser_download_url;
+}
+
 ipcMain.handle("kiln:apply-kilnd-update", async (_e, downloadUrl) => {
   // Only the download/install half runs through `runInWsl` (so failures -
   // a bad URL, no network - actually surface to the caller); restarting
@@ -299,19 +367,220 @@ ipcMain.handle("kiln:apply-kilnd-update", async (_e, downloadUrl) => {
   // `ensureKilndRunning` uses, for the reason explained on
   // `launchKilndInWsl` above: a `nohup ... &` backgrounded from inside
   // this one-shot install script wouldn't survive it exiting.
-  const installScript = `
-set -e
+  const installScript = `${installKilnBinariesScript(downloadUrl)}
 STORE="\${KILN_STORE:-$HOME/.kiln}"
-mkdir -p "$STORE/bin"
-curl -fsSL "${downloadUrl}" -o /tmp/kiln-release.tar.gz
-tar -xzf /tmp/kiln-release.tar.gz -C "$STORE/bin" kiln kiln-compose kilnd
-chmod +x "$STORE/bin/kiln" "$STORE/bin/kiln-compose" "$STORE/bin/kilnd"
 pkill -f "$STORE/bin/kilnd" 2>/dev/null || true
 sleep 1
 `;
   await runInWsl(installScript);
   launchKilndInWsl();
   return { ok: true };
+});
+
+// --- first-run setup -----------------------------------------------------
+//
+// On a genuinely fresh Windows machine, none of this exists yet: WSL2
+// itself may not be enabled, there's no distro, and even once there is
+// one, kiln/kilnd and base:latest still need installing into it. This
+// re-derives what's actually still missing from real system state every
+// time it's asked - never a remembered flag - so it's safe to close the
+// app mid-setup, and safe to resume after the one step that can force an
+// actual Windows restart (enabling VirtualMachinePlatform).
+//
+// A pinned WSL rootfs asset (see `needs-distro` below) has to exist as a
+// release on the runtime repo before this can complete end-to-end - that
+// part needs a human to publish once (same situation this project already
+// hit with pushing the first `v0.1.0` tag), it isn't something this code
+// can create for itself.
+const WSL_ROOTFS_RELEASE_TAG = "wsl-rootfs-v1";
+const WSL_ROOTFS_ASSET_NAME = "ubuntu-noble-wsl-amd64.wsl";
+
+// `wsl.exe` writes UTF-16LE to stdout whenever it isn't attached to a
+// real console - which is always the case once captured via
+// `child_process` - a well-known quirk. `buf[1] === 0x00` (an ASCII byte
+// followed by a null byte) is the signature of UTF-16LE-encoded ASCII
+// text; anything else is treated as already UTF-8.
+function decodeWslOutput(buf) {
+  if (buf.length >= 2 && buf[1] === 0x00) return buf.toString("utf16le");
+  return buf.toString("utf8");
+}
+
+/** Raw `wsl.exe` invocation that never rejects on a non-zero exit - the
+ * exit code and decoded output are both meaningful signals here (e.g.
+ * "no such distro" vs "wsl.exe doesn't exist at all"), not just errors. */
+function execWsl(args) {
+  return new Promise((resolve) => {
+    execFile("wsl.exe", args, { encoding: "buffer", timeout: 30000 }, (err, stdout, stderr) => {
+      resolve({
+        code: err && typeof err.code === "number" ? err.code : err ? -1 : 0,
+        stdout: decodeWslOutput(stdout || Buffer.alloc(0)),
+        stderr: decodeWslOutput(stderr || Buffer.alloc(0)),
+        spawnError: err && typeof err.code !== "number" ? err : null,
+      });
+    });
+  });
+}
+
+/** `null` means `wsl.exe` itself couldn't be run at all (WSL not
+ * installed/enabled) - distinct from "ran fine, zero distros". */
+async function listWslDistros() {
+  const result = await execWsl(["-l", "-q"]);
+  if (result.spawnError) return null;
+  return result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\*/, "").trim())
+    .filter(Boolean);
+}
+
+async function isKilnDistroProvisioned() {
+  // No KILN_STORE override inside a freshly imported distro - matches
+  // `kiln_cli::default_store()`'s own fallback ($HOME/.kiln) exactly, so
+  // this is the same path `kiln build` itself will have written to.
+  const result = await execWsl(["-d", PROVISIONED_DISTRO, "-u", "root", "-e", "test", "-f", "$HOME/.kiln/.base-image-built"]);
+  return result.code === 0;
+}
+
+async function areKilnBinariesInstalled() {
+  const result = await execWsl(["-d", PROVISIONED_DISTRO, "-u", "root", "-e", "test", "-x", "$HOME/.kiln/bin/kilnd"]);
+  return result.code === 0;
+}
+
+/** Re-derives the next required setup step from real system state - see
+ * the module comment above for why this never trusts a remembered flag. */
+async function detectSetupState() {
+  const distros = await listWslDistros();
+  if (distros === null) return { state: "needs-features" };
+  if (!distros.includes(PROVISIONED_DISTRO)) return { state: "needs-distro" };
+  if (!(await areKilnBinariesInstalled())) return { state: "needs-kiln" };
+  if (!(await isKilnDistroProvisioned())) return { state: "needs-base-image" };
+  return { state: "ready" };
+}
+
+function setupHelperPath() {
+  // `extraResources` in package.json lands packaged files under
+  // `process.resourcesPath`; unpackaged (dev) runs read straight from
+  // the repo's own `resources/` directory instead.
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "setup-helper.ps1")
+    : path.join(__dirname, "..", "resources", "setup-helper.ps1");
+}
+
+/** Runs the elevated helper (feature enable + reboot signaling, see
+ * `resources/setup-helper.ps1`'s own docs for the full state machine it
+ * owns) and translates its exit code into a result the renderer can act
+ * on directly. */
+function runSetupHelper() {
+  return new Promise((resolve) => {
+    execFile(
+      "powershell.exe",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", setupHelperPath(), "-InstallPath", process.execPath],
+      { timeout: 300000 },
+      (err, _stdout, stderr) => {
+        const code = err && typeof err.code === "number" ? err.code : err ? -1 : 0;
+        if (code === 0) resolve({ ok: true });
+        else if (code === 3010) resolve({ ok: false, restartRequired: true });
+        else resolve({ ok: false, error: stderr || `setup-helper.ps1 exited ${code}` });
+      },
+    );
+  });
+}
+
+async function importProvisionedDistro() {
+  const release = await githubJson(`/repos/${KILND_REPO}/releases/tags/${WSL_ROOTFS_RELEASE_TAG}`);
+  const asset = (release.assets || []).find((a) => a.name === WSL_ROOTFS_ASSET_NAME);
+  if (!asset) throw new Error(`release ${WSL_ROOTFS_RELEASE_TAG} has no ${WSL_ROOTFS_ASSET_NAME} asset`);
+
+  const installDir = path.join(app.getPath("userData"), "wsl-distro");
+  fs.mkdirSync(installDir, { recursive: true });
+  const rootfsPath = path.join(app.getPath("temp"), WSL_ROOTFS_ASSET_NAME);
+
+  await new Promise((resolve, reject) => {
+    https
+      .get(asset.browser_download_url, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          https.get(res.headers.location, (res2) => pipeToFile(res2, rootfsPath).then(resolve, reject));
+          return;
+        }
+        pipeToFile(res, rootfsPath).then(resolve, reject);
+      })
+      .on("error", reject);
+  });
+
+  // `.wsl`-named assets from Canonical are, in current practice, the same
+  // tar content `wsl --import` has always accepted - `--import` doesn't
+  // care about the file extension, only what's inside it.
+  const result = await execWsl(["--import", PROVISIONED_DISTRO, installDir, rootfsPath, "--version", "2"]);
+  if (result.code !== 0) throw new Error(result.stderr || `wsl --import exited ${result.code}`);
+
+  // Match this project's own root-everywhere identity model (kilnd needs
+  // to run as root regardless) - and sidesteps the Store-Ubuntu-specific
+  // interactive first-run username/password wizard entirely, since a
+  // raw imported rootfs never had one to begin with.
+  await runInWsl('printf "[user]\\ndefault=root\\n" > /etc/wsl.conf', PROVISIONED_DISTRO);
+  await execWsl(["--terminate", PROVISIONED_DISTRO]);
+
+  // From here on, every ordinary kilnd operation (launch, updates) should
+  // target the distro setup just created, not the dev-workflow default.
+  writeConfig({ wslDistro: PROVISIONED_DISTRO });
+}
+
+function pipeToFile(response, destPath) {
+  return new Promise((resolve, reject) => {
+    if (response.statusCode !== 200) {
+      reject(new Error(`downloading rootfs: HTTP ${response.statusCode}`));
+      return;
+    }
+    const file = fs.createWriteStream(destPath);
+    response.pipe(file);
+    file.on("finish", () => file.close(resolve));
+    file.on("error", reject);
+  });
+}
+
+async function installKilnAndBaseImage() {
+  const downloadUrl = await latestKilnReleaseDownloadUrl();
+  const script = `${installKilnBinariesScript(downloadUrl)}
+STORE="\${KILN_STORE:-$HOME/.kiln}"
+"$STORE/bin/kiln" build -f "$STORE/base-image/Kilnfile" -t base:latest "$STORE/base-image"
+touch "$STORE/.base-image-built"
+`;
+  await runInWsl(script, PROVISIONED_DISTRO);
+}
+
+ipcMain.handle("kiln:setup-detect", () => detectSetupState());
+
+ipcMain.handle("kiln:setup-advance", async () => {
+  const { state } = await detectSetupState();
+  try {
+    switch (state) {
+      case "needs-features":
+        return await runSetupHelper();
+      case "needs-distro":
+        await importProvisionedDistro();
+        return { ok: true };
+      case "needs-kiln":
+        await installKilnAndBaseImage();
+        return { ok: true };
+      case "needs-base-image":
+        // Binaries installed but the base-image build didn't finish
+        // (e.g. interrupted) - retrying the whole install script is
+        // cheap and correct, `kiln build`'s own cache makes the binary
+        // re-download the only real cost.
+        await installKilnAndBaseImage();
+        return { ok: true };
+      case "ready":
+        await ensureKilndRunning();
+        return { ok: true };
+      default:
+        return { ok: false, error: `unknown setup state: ${state}` };
+    }
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+});
+
+ipcMain.handle("kiln:setup-restart-windows", () => {
+  spawn("shutdown.exe", ["/r", "/t", "5"], { detached: true, stdio: "ignore" }).unref();
 });
 
 // electron-updater talks to the dashboard's *own* GitHub repo (configured

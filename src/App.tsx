@@ -4,6 +4,7 @@ import ImagesView from "./components/ImagesView";
 import NetworksView from "./components/NetworksView";
 import TerminalView from "./components/TerminalView";
 import UpdatesWidget from "./components/UpdatesWidget";
+import SetupWizard from "./components/SetupWizard";
 import { initialTheme, THEME_KEY, type Theme } from "./theme";
 
 type Tab = "containers" | "images" | "networks" | "terminal";
@@ -11,11 +12,27 @@ type Tab = "containers" | "images" | "networks" | "terminal";
 export default function App() {
   const [tab, setTab] = useState<Tab>("containers");
   const [theme, setTheme] = useState<Theme>(initialTheme);
+  // `null` while the very first check is in flight, so an
+  // already-fully-set-up machine (the common case after the first run)
+  // never flashes the wizard at all - only mount it once we positively
+  // know setup isn't done.
+  const [setupReady, setSetupReady] = useState<boolean | null>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    window.kiln.setupDetect().then((r) => setSetupReady(r.state === "ready"));
+  }, []);
+
+  if (setupReady === false) {
+    return <SetupWizard onReady={() => setSetupReady(true)} />;
+  }
+  if (setupReady === null) {
+    return null;
+  }
 
   return (
     <div className="app">

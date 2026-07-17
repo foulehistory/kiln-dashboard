@@ -64,6 +64,18 @@ export interface UpdateStatus {
   error?: string;
 }
 
+export type SetupState = "needs-features" | "needs-distro" | "needs-kiln" | "needs-base-image" | "ready";
+
+export interface SetupDetectResult {
+  state: SetupState;
+}
+
+export interface SetupAdvanceResult {
+  ok: boolean;
+  restartRequired?: boolean;
+  error?: string;
+}
+
 export interface KilnApi {
   containers(): Promise<ApiResult<ContainerInfo[]>>;
   images(): Promise<ApiResult<ImageInfo[]>>;
@@ -83,6 +95,10 @@ export interface KilnApi {
   execClose(sessionId: number): void;
   onExecData(cb: (payload: { sessionId: number; data: string }) => void): () => void;
   onExecClosed(cb: (payload: { sessionId: number }) => void): () => void;
+
+  setupDetect(): Promise<SetupDetectResult>;
+  setupAdvance(): Promise<SetupAdvanceResult>;
+  setupRestartWindows(): Promise<void>;
 
   checkKilndUpdate(): Promise<UpdateStatus>;
   applyKilndUpdate(downloadUrl: string): Promise<{ ok: boolean }>;

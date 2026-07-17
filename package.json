@@ -32,6 +32,7 @@
     "appId": "dev.kiln.dashboard",
     "productName": "Kiln Dashboard",
     "files": ["dist/**/*", "electron/**/*", "build/**/*", "package.json"],
+    "extraResources": [{ "from": "resources/setup-helper.ps1", "to": "setup-helper.ps1" }],
     "directories": {
       "output": "dist-release"
     },
