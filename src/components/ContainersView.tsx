@@ -71,6 +71,15 @@ export default function ContainersView() {
   if (openGroup) {
     return <ProjectDetailView project={openGroup.project} containers={openGroup.containers} onBack={() => setOpenProject(null)} />;
   }
+  // A standalone container (not part of any kiln-compose project) has no
+  // group to look up by name - openProject holds its id instead in that
+  // case, so it can't collide with an actual project name. Reuses
+  // ProjectDetailView as a one-item "project" - same log panel, same
+  // start/stop/remove, no separate component needed.
+  const openStandalone = openProject ? standalone.find((c) => c.id === openProject) : undefined;
+  if (openStandalone) {
+    return <ProjectDetailView project={openStandalone.name} containers={[openStandalone]} onBack={() => setOpenProject(null)} />;
+  }
 
   return (
     <div>
@@ -158,7 +167,7 @@ export default function ContainersView() {
               const s = statsMap[c.id];
               const running = c.status === "running";
               return (
-                <tr key={c.id}>
+                <tr key={c.id} onClick={() => setOpenProject(c.id)} style={{ cursor: "pointer" }}>
                   <td>
                     {c.name}
                     <div className="muted mono">{c.id.slice(0, 12)}</div>
@@ -171,7 +180,7 @@ export default function ContainersView() {
                   <td>{s ? formatBytes(s.memory_current_bytes) : "-"}</td>
                   <td className="mono">{c.ip ?? "-"}</td>
                   <td className="mono muted">{c.command.join(" ").slice(0, 40)}</td>
-                  <td>
+                  <td onClick={(e) => e.stopPropagation()}>
                     {busy === c.id ? (
                       <span className="muted">
                         <span className="spinner" />
