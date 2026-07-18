@@ -454,16 +454,29 @@ async function listWslDistros() {
     .filter(Boolean);
 }
 
+// Both checks below go through `bash -c` deliberately, not a bare `-e
+// test -x <path>` - `wsl.exe -e <command> <args>` execs <command>
+// directly with no shell involved at all, so `$HOME` in the path would
+// be passed through completely literal, unexpanded. That was a real bug
+// here: the unexpanded-`$HOME` version always failed (no literal `$HOME`
+// directory exists), so `detectSetupState` could never observe a
+// successful install, which sent `setupAdvance`'s loop back around to
+// "needs-kiln" forever - each pass doing a real download and a real
+// GitHub API call, which is what actually burned a full hour's rate
+// limit in about two minutes during testing (see the "rate limit"
+// commit's own history for that story) rather than some genuine 60
+// separate retries.
+
 async function isKilnDistroProvisioned() {
   // No KILN_STORE override inside a freshly imported distro - matches
   // `kiln_cli::default_store()`'s own fallback ($HOME/.kiln) exactly, so
   // this is the same path `kiln build` itself will have written to.
-  const result = await execWsl(["-d", PROVISIONED_DISTRO, "-u", "root", "-e", "test", "-f", "$HOME/.kiln/.base-image-built"]);
+  const result = await execWsl(["-d", PROVISIONED_DISTRO, "-u", "root", "-e", "bash", "-c", 'test -f "$HOME/.kiln/.base-image-built"']);
   return result.code === 0;
 }
 
 async function areKilnBinariesInstalled() {
-  const result = await execWsl(["-d", PROVISIONED_DISTRO, "-u", "root", "-e", "test", "-x", "$HOME/.kiln/bin/kilnd"]);
+  const result = await execWsl(["-d", PROVISIONED_DISTRO, "-u", "root", "-e", "bash", "-c", 'test -x "$HOME/.kiln/bin/kilnd"']);
   return result.code === 0;
 }
 
@@ -539,6 +552,18 @@ async function importProvisionedDistro() {
   // interactive first-run username/password wizard entirely, since a
   // raw imported rootfs never had one to begin with.
   await runInWsl('printf "[user]\\ndefault=root\\n" > /etc/wsl.conf', PROVISIONED_DISTRO);
+  // This rootfs's own default /root permissions (0700 - traversable only
+  // by its literal owner) block every kiln container from ever mounting
+  // its overlay: containers run inside a mapped subordinate uid (see
+  // kiln-image::identity::SUBORDINATE_UID_BASE), and the kernel's DAC
+  // check for that uid against a bare-0700 /root fails before it ever
+  // reaches kiln's own store paths underneath - confirmed for real by
+  // reproducing it (a synthetic overlay+userns mount in /tmp worked
+  // fine; the exact same mount under $HOME failed with EACCES until this
+  // one directory's mode changed to 0701). Harmless to open up - nothing
+  // sensitive lives directly in /root itself, everything real is under
+  // /root/.kiln with its own, already-correct per-entry ownership.
+  await runInWsl("chmod o+x /root", PROVISIONED_DISTRO);
   await execWsl(["--terminate", PROVISIONED_DISTRO]);
 
   // From here on, every ordinary kilnd operation (launch, updates) should

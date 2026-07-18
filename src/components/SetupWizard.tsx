@@ -36,7 +36,17 @@ export default function SetupWizard({ onReady }: { onReady: () => void }) {
     runningRef.current = true;
     setError(null);
     try {
-      for (;;) {
+      // There are only 4 real steps before "ready" - this is generous
+      // slack on top of that, not a step budget. It exists purely as a
+      // backstop: a step whose detection never observes its own success
+      // would otherwise send this loop back to the same state forever,
+      // each pass doing real work (a download, a GitHub API call) with
+      // no user in the loop to notice - exactly what happened here
+      // before a `$HOME`-expansion bug in the detection checks got
+      // fixed. Hitting this cap now always means a real bug, not just
+      // "unlucky" - it stops and asks a human rather than continuing to
+      // spin silently.
+      for (let i = 0; i < 10; i++) {
         const detected = await window.kiln.setupDetect();
         setState(detected.state);
         if (detected.state === "ready") {
@@ -53,6 +63,7 @@ export default function SetupWizard({ onReady }: { onReady: () => void }) {
           return;
         }
       }
+      setError("Setup didn't finish after several attempts - this points at a real bug, not bad luck. Please report this.");
     } finally {
       runningRef.current = false;
     }
