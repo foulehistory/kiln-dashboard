@@ -539,6 +539,30 @@ select:hover {
   color: #d7dde5;
 }
 
+.stats-panel {
+  display: flex;
+  gap: 24px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.stats-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stats-chart-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sparkline {
+  display: block;
+}
+
 /* --- animations -------------------------------------------------------- */
 
 @keyframes fade-in {

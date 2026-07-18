@@ -16,6 +16,9 @@ export default function ImagesView() {
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ImageInfo | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [pullRef, setPullRef] = useState("");
+  const [pulling, setPulling] = useState(false);
+  const [pullError, setPullError] = useState<string | null>(null);
 
   async function remove(img: ImageInfo) {
     setBusy(img.id);
@@ -27,10 +30,44 @@ export default function ImagesView() {
     }
   }
 
+  async function pull(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pullRef.trim()) return;
+    setPulling(true);
+    setPullError(null);
+    const r = await window.kiln.pullImage(pullRef.trim());
+    setPulling(false);
+    if (r.status !== 201) {
+      setPullError(typeof r.body === "string" && r.body ? r.body : `failed (status ${r.status})`);
+      return;
+    }
+    setPullRef("");
+  }
+
   return (
     <div>
       <h1>Images</h1>
       {error && <div className="empty-state">Could not reach kilnd - is it running? ({error})</div>}
+
+      <form className="toolbar" onSubmit={pull}>
+        <input
+          value={pullRef}
+          onChange={(e) => setPullRef(e.target.value)}
+          placeholder="image reference, e.g. busybox:1.36"
+          disabled={pulling}
+        />
+        <button type="submit" className="primary" disabled={pulling || !pullRef.trim()}>
+          {pulling ? (
+            <>
+              <span className="spinner" />
+              Pulling…
+            </>
+          ) : (
+            "+ Pull image"
+          )}
+        </button>
+      </form>
+      {pullError && <div className="updates-error" style={{ marginBottom: 12 }}>{pullError}</div>}
       {removeError && <div className="updates-error" style={{ marginBottom: 12 }}>{removeError}</div>}
       {!error && (!images || images.length === 0) && (
         <div className="empty-state">No images yet - `kiln pull &lt;name&gt;` or `kiln build` one.</div>

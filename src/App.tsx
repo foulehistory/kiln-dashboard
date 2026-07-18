@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import ContainersView from "./components/ContainersView";
 import ImagesView from "./components/ImagesView";
 import NetworksView from "./components/NetworksView";
+import VolumesView from "./components/VolumesView";
 import TerminalView from "./components/TerminalView";
 import UpdatesWidget from "./components/UpdatesWidget";
 import SetupWizard from "./components/SetupWizard";
 import { initialTheme, THEME_KEY, type Theme } from "./theme";
 
-type Tab = "containers" | "images" | "networks" | "terminal";
+type Tab = "containers" | "images" | "networks" | "volumes" | "terminal";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("containers");
@@ -43,6 +44,7 @@ export default function App() {
         <NavItem label="Containers" active={tab === "containers"} onClick={() => setTab("containers")} />
         <NavItem label="Images" active={tab === "images"} onClick={() => setTab("images")} />
         <NavItem label="Networks" active={tab === "networks"} onClick={() => setTab("networks")} />
+        <NavItem label="Volumes" active={tab === "volumes"} onClick={() => setTab("volumes")} />
         <NavItem label="Terminal" active={tab === "terminal"} onClick={() => setTab("terminal")} />
         <div className="sidebar-spacer" />
         <UpdatesWidget />
@@ -54,6 +56,7 @@ export default function App() {
         {tab === "containers" && <ContainersView />}
         {tab === "images" && <ImagesView />}
         {tab === "networks" && <NetworksView />}
+        {tab === "volumes" && <VolumesView />}
         {tab === "terminal" && <TerminalView />}
       </div>
     </div>

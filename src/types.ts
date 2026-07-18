@@ -32,6 +32,11 @@ export interface NetworkInfo {
   containers: NetworkContainer[];
 }
 
+export interface VolumeInfo {
+  name: string;
+  containers: string[];
+}
+
 export interface Stats {
   memory_current_bytes: number;
   cpu_usage_usec: number;
@@ -80,9 +85,13 @@ export interface KilnApi {
   containers(): Promise<ApiResult<ContainerInfo[]>>;
   images(): Promise<ApiResult<ImageInfo[]>>;
   removeImage(id: string): Promise<ApiResult<{ message: string } | string>>;
+  pullImage(reference: string): Promise<ApiResult<{ id: string } | string>>;
   networks(): Promise<ApiResult<NetworkInfo[]>>;
   createNetwork(name: string, subnet?: string): Promise<ApiResult<{ ok: boolean } | string>>;
   removeNetwork(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
+  volumes(): Promise<ApiResult<VolumeInfo[]>>;
+  createVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
+  removeVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   stats(id: string): Promise<ApiResult<Stats>>;
   logs(id: string): Promise<ApiResult<string>>;
   stop(id: string): Promise<ApiResult<null>>;

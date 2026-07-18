@@ -205,9 +205,18 @@ app.on("activate", () => {
 ipcMain.handle("kiln:containers", () => apiRequest("GET", "/containers"));
 ipcMain.handle("kiln:images", () => apiRequest("GET", "/images"));
 ipcMain.handle("kiln:remove-image", (_e, id) => apiRequest("DELETE", `/images/${encodeURIComponent(id)}`));
+// A pull can take a while (real network I/O against a registry) - fine to
+// just await it here, since each Electron IPC invoke already runs
+// independently and kilnd itself gives every connection its own thread,
+// so this doesn't block other polling requests (stats, containers, ...)
+// happening concurrently on the renderer side.
+ipcMain.handle("kiln:pull-image", (_e, reference) => apiRequest("POST", "/images/pull", { reference }));
 ipcMain.handle("kiln:networks", () => apiRequest("GET", "/networks"));
 ipcMain.handle("kiln:create-network", (_e, { name, subnet }) => apiRequest("POST", "/networks", { name, subnet: subnet || undefined }));
 ipcMain.handle("kiln:remove-network", (_e, name) => apiRequest("DELETE", `/networks/${encodeURIComponent(name)}`));
+ipcMain.handle("kiln:volumes", () => apiRequest("GET", "/volumes"));
+ipcMain.handle("kiln:create-volume", (_e, name) => apiRequest("POST", "/volumes", { name }));
+ipcMain.handle("kiln:remove-volume", (_e, name) => apiRequest("DELETE", `/volumes/${encodeURIComponent(name)}`));
 ipcMain.handle("kiln:stats", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/stats`));
 ipcMain.handle("kiln:logs", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/logs`));
 ipcMain.handle("kiln:stop", (_e, id) => apiRequest("POST", `/containers/${encodeURIComponent(id)}/stop`));

@@ -3,7 +3,20 @@ import { usePolling } from "../usePolling";
 import { serviceName } from "../projects";
 import { formatBytes } from "../format";
 import ConfirmDialog from "./ConfirmDialog";
+import Sparkline from "./Sparkline";
 import type { ContainerInfo, Stats } from "../types";
+
+/** How many stats samples to keep per container for the sparklines below -
+ * at the 2s poll interval this is a 1-minute rolling window, long enough
+ * to see a trend without the chart needing its own storage or history API
+ * (kilnd only ever returns a point-in-time snapshot; the history is purely
+ * an artifact of accumulating client-side polls). */
+const HISTORY_LENGTH = 30;
+
+interface StatsSample {
+  cpuPct: number;
+  memBytes: number;
+}
 
 export default function ProjectDetailView({
   project,
@@ -17,7 +30,12 @@ export default function ProjectDetailView({
   const [selectedId, setSelectedId] = useState<string | null>(containers[0]?.id ?? null);
   const [busy, setBusy] = useState<string | null>(null);
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
+  const [history, setHistory] = useState<Record<string, StatsSample[]>>({});
   const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
+  // Previous raw sample + its wall-clock time, purely to turn
+  // `cpu_usage_usec` (a monotonically increasing cumulative counter) into
+  // a percent-of-one-core rate between two polls - not itself displayed.
+  const prevRef = useRef<Record<string, { cpuUsageUsec: number; t: number }>>({});
 
   useEffect(() => {
     if (!selectedId && containers.length > 0) setSelectedId(containers[0].id);
@@ -44,6 +62,26 @@ export default function ProjectDetailView({
       const map: Record<string, Stats> = {};
       for (const [id, s] of entries) if (s) map[id] = s;
       setStatsMap(map);
+
+      const now = Date.now();
+      setHistory((prevHistory) => {
+        const next = { ...prevHistory };
+        for (const [id, s] of entries) {
+          if (!s) continue;
+          const prev = prevRef.current[id];
+          let cpuPct = 0;
+          if (prev && now > prev.t) {
+            const deltaCpuUsec = s.cpu_usage_usec - prev.cpuUsageUsec;
+            const deltaRealUsec = (now - prev.t) * 1000;
+            cpuPct = Math.max(0, (deltaCpuUsec / deltaRealUsec) * 100);
+          }
+          prevRef.current[id] = { cpuUsageUsec: s.cpu_usage_usec, t: now };
+          const existing = next[id] ?? [];
+          next[id] = [...existing, { cpuPct, memBytes: s.memory_current_bytes }].slice(-HISTORY_LENGTH);
+        }
+        return next;
+      });
+
       return map;
     },
     2000,
@@ -210,6 +248,22 @@ export default function ProjectDetailView({
                   {selected.id.slice(0, 12)}
                 </span>
               </div>
+              {selected.status === "running" && (history[selected.id]?.length ?? 0) >= 2 && (
+                <div className="stats-panel">
+                  <div className="stats-chart">
+                    <div className="muted stats-chart-label">
+                      CPU · {history[selected.id][history[selected.id].length - 1].cpuPct.toFixed(1)}%
+                    </div>
+                    <Sparkline data={history[selected.id].map((s) => s.cpuPct)} color="var(--accent)" />
+                  </div>
+                  <div className="stats-chart">
+                    <div className="muted stats-chart-label">
+                      Memory · {formatBytes(history[selected.id][history[selected.id].length - 1].memBytes)}
+                    </div>
+                    <Sparkline data={history[selected.id].map((s) => s.memBytes)} color="#e8a33d" />
+                  </div>
+                </div>
+              )}
               <pre className="log-pre" ref={logRef}>
                 {log || "(no output yet)"}
               </pre>
