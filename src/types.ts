@@ -183,6 +183,18 @@ export interface AppSettings {
   };
 }
 
+export interface AddonManifest {
+  id: string;
+  name: string;
+  icon: string | null;
+  apiVersion: number;
+  entry: string;
+  /** Bridge methods this addon may call from its sandboxed iframe, e.g.
+   * "containers:read" - see AddonsView.tsx's ADDON_PERMISSION_MAP. */
+  permissions: string[];
+  enabled: boolean;
+}
+
 export type SetupState = "needs-features" | "needs-distro" | "needs-kiln" | "needs-base-image" | "ready";
 
 export interface SetupDetectResult {
@@ -215,6 +227,10 @@ export interface KilnApi {
   gc(): Promise<ApiResult<GcResult>>;
   listVolumeFiles(name: string, path: string): Promise<ApiResult<VolumeFileEntry[] | string>>;
   readVolumeFile(name: string, path: string): Promise<ApiResult<string>>;
+
+  listAddons(): Promise<AddonManifest[]>;
+  toggleAddon(id: string, enabled: boolean): Promise<{ ok: boolean }>;
+  openAddonsFolder(): Promise<{ ok: boolean; error?: string }>;
 
   getSettings(): Promise<AppSettings>;
   setSettings(patch: DeepPartial<AppSettings>): Promise<AppSettings>;

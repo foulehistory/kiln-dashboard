@@ -27,6 +27,10 @@ contextBridge.exposeInMainWorld("kiln", {
   listVolumeFiles: (name, path) => ipcRenderer.invoke("kiln:list-volume-files", { name, path }),
   readVolumeFile: (name, path) => ipcRenderer.invoke("kiln:read-volume-file", { name, path }),
 
+  listAddons: () => ipcRenderer.invoke("kiln:list-addons"),
+  toggleAddon: (id, enabled) => ipcRenderer.invoke("kiln:toggle-addon", { id, enabled }),
+  openAddonsFolder: () => ipcRenderer.invoke("kiln:open-addons-folder"),
+
   getSettings: () => ipcRenderer.invoke("settings:get"),
   setSettings: (patch) => ipcRenderer.invoke("settings:set", patch),
   resetSettings: () => ipcRenderer.invoke("settings:reset"),

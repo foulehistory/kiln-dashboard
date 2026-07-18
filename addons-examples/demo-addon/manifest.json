@@ -1,0 +1,8 @@
+{
+  "id": "demo-addon",
+  "name": "Demo Addon",
+  "icon": "🧪",
+  "apiVersion": 1,
+  "entry": "index.html",
+  "permissions": ["containers:read", "images:read"]
+}

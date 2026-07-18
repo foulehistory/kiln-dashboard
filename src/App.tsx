@@ -4,6 +4,7 @@ import ImagesView from "./components/ImagesView";
 import NetworksView from "./components/NetworksView";
 import VolumesView from "./components/VolumesView";
 import TerminalView from "./components/TerminalView";
+import AddonsView from "./components/AddonsView";
 import SettingsView from "./components/SettingsView";
 import UpdateBanner from "./components/UpdateBanner";
 import SetupWizard from "./components/SetupWizard";
@@ -16,7 +17,7 @@ import { notify, subscribeToasts } from "./notifications/notify";
 import { resolveTheme } from "./theme";
 import type { ContainerInfo } from "./types";
 
-type Tab = "containers" | "images" | "networks" | "volumes" | "terminal" | "settings";
+type Tab = "containers" | "images" | "networks" | "volumes" | "terminal" | "addons" | "settings";
 
 export default function App() {
   return (
@@ -155,6 +156,7 @@ function AppShell() {
           <NavItem label="Networks" active={tab === "networks"} onClick={() => setTab("networks")} />
           <NavItem label="Volumes" active={tab === "volumes"} onClick={() => setTab("volumes")} />
           <NavItem label="Terminal" active={tab === "terminal"} onClick={() => setTab("terminal")} />
+          <NavItem label="Addons" active={tab === "addons"} onClick={() => setTab("addons")} />
           <NavItem label={t("nav.settings")} active={tab === "settings"} onClick={() => setTab("settings")} />
         </div>
         <div className="main">
@@ -163,6 +165,7 @@ function AppShell() {
           {tab === "networks" && <NetworksView />}
           {tab === "volumes" && <VolumesView />}
           {tab === "terminal" && <TerminalView />}
+          {tab === "addons" && <AddonsView />}
           {tab === "settings" && <SettingsView />}
         </div>
         <div className="toast-stack">

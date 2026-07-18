@@ -93,6 +93,13 @@ const DEFAULT_SETTINGS = {
     username: "",
     password: "",
   },
+  // Addon enable/disable state, keyed by manifest id - the manifests
+  // themselves are never stored here, only read live from disk each time
+  // (see main.js's listAddonsFromDisk) so dropping/removing an addon
+  // folder can't leave stale data behind. An id with no entry here is
+  // treated as disabled (opt-in: installing an addon - i.e. copying its
+  // folder in - never silently runs its code).
+  addons: {},
 };
 
 function isPlainObject(v) {

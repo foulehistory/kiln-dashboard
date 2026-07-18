@@ -5,7 +5,7 @@
 // (contextIsolation + no nodeIntegration in the renderer).
 "use strict";
 
-const { app, BrowserWindow, ipcMain, Menu, Tray, Notification, nativeImage, shell, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, Tray, Notification, nativeImage, shell, dialog, protocol } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { execFile, spawn } = require("child_process");
 const https = require("https");
@@ -14,6 +14,17 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const settingsStore = require("./settings");
+
+// Addons are loaded from disk into a sandboxed <iframe> over this custom
+// scheme instead of a raw file:// URL - file:// iframes are awkward to
+// scope under the app's CSP (each file:// path is its own opaque origin)
+// and give no clean hook to reject path-traversal reads. Must be
+// registered before app is ready (Electron requirement); the actual
+// request handler is installed in app.whenReady() below, alongside
+// createWindow().
+protocol.registerSchemesAsPrivileged([
+  { scheme: "kiln-addon", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false } },
+]);
 
 // kilnd's own repo (separate from this dashboard's repo - see the two
 // "Kiln" repos this project is split across). Used purely to look up the
@@ -280,8 +291,107 @@ Menu.setApplicationMenu(null);
 // `ensureKilndRunning()` now happens as setup's own final "ready" step
 // (see `kiln:setup-advance` above); the renderer drives that by calling
 // `kiln:setup-detect`/`kiln:setup-advance` on mount.
+function addonsDir() {
+  return path.join(app.getPath("userData"), "addons");
+}
+
+const ADDON_MIME_TYPES = {
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+};
+
+function mimeForAddonFile(filePath) {
+  return ADDON_MIME_TYPES[path.extname(filePath).toLowerCase()] || "application/octet-stream";
+}
+
+// Scans addonsDir()/*/manifest.json fresh every call - deliberately not
+// cached, since the whole point is that an addon is "installed" just by
+// copying/removing a folder while the dashboard may already be running.
+function listAddonsFromDisk() {
+  const dir = addonsDir();
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const manifests = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const manifestPath = path.join(dir, entry.name, "manifest.json");
+    let manifest;
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    } catch {
+      continue;
+    }
+    // The folder name is the addon's identity (also used as the
+    // kiln-addon://<id>/ hostname and as the settings.addons[id] key) -
+    // requiring manifest.id to match it means an addon can never claim
+    // another addon's already-granted enabled state just by naming
+    // itself the same id from a different folder.
+    if (
+      manifest.id !== entry.name ||
+      typeof manifest.name !== "string" ||
+      typeof manifest.entry !== "string" ||
+      typeof manifest.apiVersion !== "number" ||
+      !Array.isArray(manifest.permissions)
+    ) {
+      console.log(`[addons] skipping invalid manifest at ${manifestPath}`);
+      continue;
+    }
+    manifests.push({
+      id: manifest.id,
+      name: manifest.name,
+      icon: typeof manifest.icon === "string" ? manifest.icon : null,
+      apiVersion: manifest.apiVersion,
+      entry: manifest.entry,
+      permissions: manifest.permissions.filter((p) => typeof p === "string"),
+    });
+  }
+  return manifests;
+}
+
+ipcMain.handle("kiln:list-addons", () => {
+  const enabledMap = settingsStore.readSettings().addons || {};
+  return listAddonsFromDisk().map((m) => ({ ...m, enabled: !!enabledMap[m.id] }));
+});
+ipcMain.handle("kiln:toggle-addon", (_e, { id, enabled }) => {
+  settingsStore.writeSettings({ addons: { [id]: Boolean(enabled) } });
+  return { ok: true };
+});
+ipcMain.handle("kiln:open-addons-folder", async () => {
+  fs.mkdirSync(addonsDir(), { recursive: true });
+  const err = await shell.openPath(addonsDir());
+  return err ? { ok: false, error: err } : { ok: true };
+});
+
 app.whenReady().then(() => {
   applySettingsSideEffects(settingsStore.readSettings());
+
+  // Serves addonsDir()/<id>/<path> over kiln-addon://<id>/<path>, with a
+  // path-traversal check mirroring kilnd's own resolve_within_volume
+  // (kilnd/src/handlers/volumes.rs) - resolve, then require the result to
+  // still be inside the addon's own directory before ever touching disk.
+  protocol.handle("kiln-addon", async (request) => {
+    const url = new URL(request.url);
+    const addonRoot = path.resolve(addonsDir(), url.hostname);
+    const target = path.resolve(addonRoot, "." + decodeURIComponent(url.pathname));
+    if (target !== addonRoot && !target.startsWith(addonRoot + path.sep)) {
+      return new Response("forbidden", { status: 403 });
+    }
+    try {
+      const data = await fs.promises.readFile(target);
+      return new Response(data, { headers: { "Content-Type": mimeForAddonFile(target) } });
+    } catch {
+      return new Response("not found", { status: 404 });
+    }
+  });
+
   createWindow();
 });
 app.on("window-all-closed", () => {
