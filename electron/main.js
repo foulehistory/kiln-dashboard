@@ -150,9 +150,21 @@ function apiRequest(method, urlPath, body) {
 // script `exec` straight into kilnd (replacing the shell) instead of
 // backgrounding it - kilnd then runs as that session's own foreground
 // process for as long as it stays up.
+// Single-quotes a value for safe embedding in the shell script below -
+// registry credentials are arbitrary user input that could contain `$`,
+// backticks, quotes, etc.
+function shQuote(s) {
+  return `'${String(s).replace(/'/g, "'\\''")}'`;
+}
+
 function launchKilndInWsl() {
+  const { registry } = settingsStore.readSettings();
+  const envLines =
+    registry.username && registry.password
+      ? `export KILN_REGISTRY_USER=${shQuote(registry.username)}\nexport KILN_REGISTRY_PASS=${shQuote(registry.password)}\n`
+      : "";
   const script = `
-STORE="\${KILN_STORE:-$HOME/.kiln}"
+${envLines}STORE="\${KILN_STORE:-$HOME/.kiln}"
 B="$STORE/bin/kilnd"
 [ -x "$B" ] || B="/mnt/e/kiln/target/debug/kilnd"
 if [ -x "$B" ]; then
@@ -283,6 +295,27 @@ app.on("activate", () => {
 ipcMain.handle("kiln:containers", () => apiRequest("GET", "/containers"));
 ipcMain.handle("kiln:images", () => apiRequest("GET", "/images"));
 ipcMain.handle("kiln:inspect-image", (_e, id) => apiRequest("GET", `/images/${encodeURIComponent(id)}`));
+ipcMain.handle("kiln:push-image", (_e, reference) => apiRequest("POST", "/images/push", { reference }));
+
+// A build context is a Windows folder the user picks natively, but
+// kilnd lives inside WSL2 and only ever sees its own filesystem - WSL2
+// mounts every Windows drive at /mnt/<lowercase-letter>/..., so this is
+// just a mechanical path translation, the mirror image of the
+// wsl.localhost UNC translation used for "open volume in Explorer".
+function windowsPathToWsl(winPath) {
+  const m = /^([a-zA-Z]):\\(.*)$/.exec(winPath);
+  if (!m) return winPath.replace(/\\/g, "/");
+  return `/mnt/${m[1].toLowerCase()}/${m[2].replace(/\\/g, "/")}`;
+}
+
+ipcMain.handle("kiln:pick-build-context", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory"] });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return { windowsPath: result.filePaths[0], wslPath: windowsPathToWsl(result.filePaths[0]) };
+});
+ipcMain.handle("kiln:build-image", (_e, { contextDir, kilnfilePath, tag }) =>
+  apiRequest("POST", "/images/build", { context_dir: contextDir, kilnfile_path: kilnfilePath || undefined, tag: tag || undefined }),
+);
 ipcMain.handle("kiln:remove-image", (_e, id) => apiRequest("DELETE", `/images/${encodeURIComponent(id)}`));
 // A pull can take a while (real network I/O against a registry) - fine to
 // just await it here, since each Electron IPC invoke already runs

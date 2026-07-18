@@ -9,8 +9,9 @@ import TerminalSection from "./settings/TerminalSection";
 import ConnectionSection from "./settings/ConnectionSection";
 import UpdatesSection from "./settings/UpdatesSection";
 import DataSection from "./settings/DataSection";
+import RegistrySection from "./settings/RegistrySection";
 
-type Section = "appearance" | "behavior" | "notifications" | "logs" | "terminal" | "connection" | "updates" | "data";
+type Section = "appearance" | "behavior" | "notifications" | "logs" | "terminal" | "connection" | "updates" | "data" | "registry";
 
 const SECTIONS: { key: Section; labelKey: TKey; Component: ComponentType }[] = [
   { key: "appearance", labelKey: "settings.section.appearance", Component: AppearanceSection },
@@ -20,6 +21,7 @@ const SECTIONS: { key: Section; labelKey: TKey; Component: ComponentType }[] = [
   { key: "terminal", labelKey: "settings.section.terminal", Component: TerminalSection },
   { key: "connection", labelKey: "settings.section.connection", Component: ConnectionSection },
   { key: "updates", labelKey: "settings.section.updates", Component: UpdatesSection },
+  { key: "registry", labelKey: "settings.section.registry", Component: RegistrySection },
   { key: "data", labelKey: "settings.section.data", Component: DataSection },
 ];
 

@@ -19,6 +19,7 @@ const fr = {
   "settings.section.connection": "Connexion",
   "settings.section.updates": "Mise à jour",
   "settings.section.data": "Données & vie privée",
+  "settings.section.registry": "Registre",
 
   "settings.restartRequired": "nécessite un redémarrage",
 
@@ -123,6 +124,11 @@ const fr = {
   "data.reset.confirm": "Réinitialiser tous les réglages aux valeurs par défaut ?",
   "data.configLocation": "Emplacement du fichier de configuration",
   "data.openFolder": "Ouvrir le dossier",
+
+  "registry.intro": "Pour les registres privés/auto-hébergés uniquement - Docker Hub n'utilise jamais ces identifiants (son flux d'authentification reste anonyme). S'applique au prochain démarrage de kilnd, pas en direct.",
+  "registry.username": "Nom d'utilisateur",
+  "registry.password": "Mot de passe",
+  "registry.warning": "Stocké en clair dans le fichier de réglages local (pas de coffre-fort système) - à réserver à un registre de confiance sur cette machine.",
 } as const;
 
 const en: Record<keyof typeof fr, string> = {
@@ -137,6 +143,7 @@ const en: Record<keyof typeof fr, string> = {
   "settings.section.connection": "Connection",
   "settings.section.updates": "Updates",
   "settings.section.data": "Data & Privacy",
+  "settings.section.registry": "Registry",
 
   "settings.restartRequired": "requires a restart",
 
@@ -241,6 +248,11 @@ const en: Record<keyof typeof fr, string> = {
   "data.reset.confirm": "Reset all settings to their defaults?",
   "data.configLocation": "Settings file location",
   "data.openFolder": "Open folder",
+
+  "registry.intro": "For self-hosted/private registries only - Docker Hub never uses these credentials (its own auth flow stays anonymous). Applies the next time kilnd starts, not live.",
+  "registry.username": "Username",
+  "registry.password": "Password",
+  "registry.warning": "Stored in plain text in your local settings file (no OS keychain) - only use this for a registry you trust on this machine.",
 };
 
 export const dictionaries: Record<Lang, Record<keyof typeof fr, string>> = { fr, en };

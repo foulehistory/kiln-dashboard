@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatBytes } from "../format";
-import type { ImageDetail } from "../types";
+import type { ImageDetail, ImageInfo } from "../types";
 
 /** No build *history* here on purpose, not an oversight: kiln-image's
  * layer format deliberately never records which Kilnfile instruction
@@ -9,13 +9,19 @@ import type { ImageDetail } from "../types";
  * isn't actual file content/metadata). This shows the real layer stack
  * and image config instead of inventing history that was never
  * captured. */
-export default function ImageDetailModal({ imageId, label, onClose }: { imageId: string; label: string; onClose: () => void }) {
+export default function ImageDetailModal({ image, onClose }: { image: ImageInfo; onClose: () => void }) {
   const [detail, setDetail] = useState<ImageDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pushing, setPushing] = useState(false);
+  const [pushResult, setPushResult] = useState<string | null>(null);
+  const [pushError, setPushError] = useState<string | null>(null);
+
+  const label = image.repository ? `${image.repository}:${image.tag}` : image.id.slice(0, 16);
+  const pushReference = image.repository ? `${image.repository.replace(/^library\//, "")}:${image.tag}` : null;
 
   useEffect(() => {
     let cancelled = false;
-    window.kiln.inspectImage(imageId).then((r) => {
+    window.kiln.inspectImage(image.id).then((r) => {
       if (cancelled) return;
       if (r.status !== 200 || typeof r.body === "string") {
         setError(typeof r.body === "string" && r.body ? r.body : `failed (status ${r.status})`);
@@ -26,7 +32,21 @@ export default function ImageDetailModal({ imageId, label, onClose }: { imageId:
     return () => {
       cancelled = true;
     };
-  }, [imageId]);
+  }, [image.id]);
+
+  async function push() {
+    if (!pushReference) return;
+    setPushing(true);
+    setPushResult(null);
+    setPushError(null);
+    const r = await window.kiln.pushImage(pushReference);
+    setPushing(false);
+    if (r.status !== 200 || typeof r.body === "string") {
+      setPushError(typeof r.body === "string" && r.body ? r.body : `failed (status ${r.status})`);
+      return;
+    }
+    setPushResult(`Pushed as ${r.body.pushed_as}.`);
+  }
 
   return (
     <div className="confirm-overlay" onClick={onClose}>
@@ -97,8 +117,29 @@ export default function ImageDetailModal({ imageId, label, onClose }: { imageId:
           </>
         )}
 
+        {pushError && <div className="updates-error" style={{ marginTop: 10 }}>{pushError}</div>}
+        {pushResult && (
+          <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+            {pushResult}
+          </div>
+        )}
         <div className="confirm-actions">
           <button onClick={onClose}>Close</button>
+          <button
+            className="primary"
+            onClick={push}
+            disabled={pushing || !pushReference}
+            title={pushReference ? undefined : "Untagged images can't be pushed - tag it first"}
+          >
+            {pushing ? (
+              <>
+                <span className="spinner" />
+                Pushing…
+              </>
+            ) : (
+              "Push"
+            )}
+          </button>
         </div>
       </div>
     </div>

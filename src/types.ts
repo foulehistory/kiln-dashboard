@@ -20,6 +20,17 @@ export interface ImageInfo {
   size_bytes: number;
 }
 
+export interface BuildStep {
+  instruction: string;
+  cached: boolean;
+}
+
+export interface BuildResult {
+  image_id: string;
+  steps: BuildStep[];
+  tagged: string | null;
+}
+
 export interface LayerDetail {
   hash: string;
   entry_count: number;
@@ -166,6 +177,10 @@ export interface AppSettings {
   data: {
     telemetry: boolean;
   };
+  registry: {
+    username: string;
+    password: string;
+  };
 }
 
 export type SetupState = "needs-features" | "needs-distro" | "needs-kiln" | "needs-base-image" | "ready";
@@ -184,6 +199,9 @@ export interface KilnApi {
   containers(): Promise<ApiResult<ContainerInfo[]>>;
   images(): Promise<ApiResult<ImageInfo[]>>;
   inspectImage(id: string): Promise<ApiResult<ImageDetail | string>>;
+  pushImage(reference: string): Promise<ApiResult<{ id: string; pushed_as: string } | string>>;
+  pickBuildContext(): Promise<{ windowsPath: string; wslPath: string } | null>;
+  buildImage(contextDir: string, kilnfilePath: string | undefined, tag: string | undefined): Promise<ApiResult<BuildResult | string>>;
   removeImage(id: string): Promise<ApiResult<{ message: string } | string>>;
   pullImage(reference: string): Promise<ApiResult<{ id: string } | string>>;
   networks(): Promise<ApiResult<NetworkInfo[]>>;

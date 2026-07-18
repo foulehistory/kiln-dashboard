@@ -35,6 +35,7 @@ const FALLBACK_SETTINGS: AppSettings = {
   connection: { mode: "local", remoteHost: "", remotePort: 7867, reconnectIntervalMs: 5000 },
   updates: { autoCheck: true, channel: "stable" },
   data: { telemetry: false },
+  registry: { username: "", password: "" },
 };
 
 interface SettingsContextValue {

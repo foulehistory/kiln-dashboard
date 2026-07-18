@@ -3,6 +3,7 @@ import { usePolling } from "../usePolling";
 import ConfirmDialog from "./ConfirmDialog";
 import DiskUsageCard from "./DiskUsageCard";
 import ImageDetailModal from "./ImageDetailModal";
+import BuildImageModal from "./BuildImageModal";
 import { useSettings } from "../settings/SettingsContext";
 import { notify } from "../notifications/notify";
 import { formatBytes } from "../format";
@@ -28,6 +29,7 @@ export default function ImagesView() {
   const [pullError, setPullError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [detail, setDetail] = useState<ImageInfo | null>(null);
+  const [showBuild, setShowBuild] = useState(false);
 
   async function remove(img: ImageInfo) {
     setBusy(img.id);
@@ -80,6 +82,9 @@ export default function ImagesView() {
           ) : (
             "+ Pull image"
           )}
+        </button>
+        <button type="button" onClick={() => setShowBuild(true)}>
+          + Build from Kilnfile
         </button>
       </form>
       {pullError && <div className="updates-error" style={{ marginBottom: 12 }}>{pullError}</div>}
@@ -145,13 +150,8 @@ export default function ImagesView() {
           onCancel={() => setConfirm(null)}
         />
       )}
-      {detail && (
-        <ImageDetailModal
-          imageId={detail.id}
-          label={detail.repository ? `${detail.repository}:${detail.tag}` : detail.id.slice(0, 16)}
-          onClose={() => setDetail(null)}
-        />
-      )}
+      {detail && <ImageDetailModal image={detail} onClose={() => setDetail(null)} />}
+      {showBuild && <BuildImageModal onClose={() => setShowBuild(false)} onBuilt={() => {}} />}
     </div>
   );
 }

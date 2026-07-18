@@ -80,6 +80,19 @@ const DEFAULT_SETTINGS = {
     // value; it does not activate a hidden collection pipeline.
     telemetry: false,
   },
+  registry: {
+    // For self-hosted/"explicit host" registries only (kiln-image's
+    // registry.rs never sends these to Docker Hub itself - its token
+    // flow there is always anonymous). Applied by exporting
+    // KILN_REGISTRY_USER/PASS into kilnd's own environment right before
+    // it's launched (see main.js's launchKilndInWsl), so a change here
+    // takes effect the next time kilnd starts, not live. Stored as
+    // plain JSON in this settings file, same as everything else here -
+    // not OS-keychain-backed, so this is meant for a private registry
+    // on your own trusted machine, not a secret worth real protection.
+    username: "",
+    password: "",
+  },
 };
 
 function isPlainObject(v) {
