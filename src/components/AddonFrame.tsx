@@ -85,7 +85,13 @@ export default function AddonFrame({ addon }: { addon: AddonManifest }) {
 
   return (
     <div className="addon-frame-wrap">
-      <iframe ref={iframeRef} src={`kiln-addon://${addon.id}/${addon.entry}`} sandbox="allow-scripts" className="addon-frame" title={addon.name} />
+      {/* allow-forms: without it, the sandbox suppresses form submission
+          entirely (a <form>'s submit event never fires, even from a real
+          click on its submit button) - needed for any addon using a plain
+          HTML form, like mysql-users-addon's "add user". Still no
+          allow-same-origin/allow-top-navigation/etc., so the addon stays
+          unable to reach anything outside the postMessage bridge. */}
+      <iframe ref={iframeRef} src={`kiln-addon://${addon.id}/${addon.entry}`} sandbox="allow-scripts allow-forms" className="addon-frame" title={addon.name} />
     </div>
   );
 }
