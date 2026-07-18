@@ -1,31 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { FolderIcon } from "./icons";
+import AddonFrame from "./AddonFrame";
 import type { AddonManifest } from "../types";
-
-/** Which bridge method each bit of addon-callable functionality needs -
- * an addon's manifest.permissions must list the value here before its
- * iframe is allowed to invoke the matching method. Checked entirely in
- * this renderer (see handleBridgeMessage below); the iframe itself has no
- * preload script and therefore no direct access to window.kiln at all -
- * postMessage through this permission check is its only way out. */
-const ADDON_METHOD_PERMISSIONS: Record<string, string> = {
-  "containers.list": "containers:read",
-  "images.list": "images:read",
-  "images.remove": "images:write",
-};
-
-async function callBridgeMethod(method: string, args: unknown[]): Promise<unknown> {
-  switch (method) {
-    case "containers.list":
-      return (await window.kiln.containers()).body;
-    case "images.list":
-      return (await window.kiln.images()).body;
-    case "images.remove":
-      return (await window.kiln.removeImage(String(args[0]))).body;
-    default:
-      throw new Error(`unknown method: ${method}`);
-  }
-}
 
 async function fetchAddons() {
   return window.kiln.listAddons();
@@ -36,7 +12,6 @@ export default function AddonsView() {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [folderError, setFolderError] = useState<string | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const selected = addons?.find((a) => a.id === selectedId) ?? null;
 
   async function refresh() {
@@ -56,33 +31,6 @@ export default function AddonsView() {
   // disabled out from under it.
   useEffect(() => {
     if (selected && !selected.enabled) setSelectedId(null);
-  }, [selected]);
-
-  useEffect(() => {
-    if (!selected) return;
-    function handleMessage(event: MessageEvent) {
-      if (!iframeRef.current || event.source !== iframeRef.current.contentWindow) return;
-      const msg = event.data;
-      if (!msg || msg.type !== "kiln-addon-call") return;
-      const { callId, method, args } = msg;
-      const reply = (payload: Record<string, unknown>) =>
-        iframeRef.current?.contentWindow?.postMessage({ type: "kiln-addon-result", callId, ...payload }, "*");
-
-      const requiredPermission = ADDON_METHOD_PERMISSIONS[method];
-      if (!requiredPermission) {
-        reply({ ok: false, error: `unknown method: ${method}` });
-        return;
-      }
-      if (!selected!.permissions.includes(requiredPermission)) {
-        reply({ ok: false, error: `permission denied: "${method}" requires "${requiredPermission}", which this addon's manifest does not declare` });
-        return;
-      }
-      callBridgeMethod(method, args || [])
-        .then((data) => reply({ ok: true, data }))
-        .catch((e) => reply({ ok: false, error: String(e) }));
-    }
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
   }, [selected]);
 
   async function toggle(id: string, enabled: boolean) {
@@ -157,18 +105,7 @@ export default function AddonsView() {
         </table>
       )}
 
-      {selected && (
-        <div className="addon-frame-wrap">
-          <iframe
-            ref={iframeRef}
-            key={selected.id}
-            src={`kiln-addon://${selected.id}/${selected.entry}`}
-            sandbox="allow-scripts"
-            className="addon-frame"
-            title={selected.name}
-          />
-        </div>
-      )}
+      {selected && <AddonFrame addon={selected} key={selected.id} />}
     </div>
   );
 }

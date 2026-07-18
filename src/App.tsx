@@ -5,6 +5,7 @@ import NetworksView from "./components/NetworksView";
 import VolumesView from "./components/VolumesView";
 import TerminalView from "./components/TerminalView";
 import AddonsView from "./components/AddonsView";
+import AddonFrame from "./components/AddonFrame";
 import SettingsView from "./components/SettingsView";
 import UpdateBanner from "./components/UpdateBanner";
 import SetupWizard from "./components/SetupWizard";
@@ -15,9 +16,13 @@ import { useT } from "./i18n/useT";
 import { usePolling } from "./usePolling";
 import { notify, subscribeToasts } from "./notifications/notify";
 import { resolveTheme } from "./theme";
-import type { ContainerInfo } from "./types";
+import type { AddonManifest, ContainerInfo } from "./types";
 
-type Tab = "containers" | "images" | "networks" | "volumes" | "terminal" | "addons" | "settings";
+type StaticTab = "containers" | "images" | "networks" | "volumes" | "terminal" | "addons" | "settings";
+// An enabled addon's own dedicated sidebar tab (below the Settings
+// separator) - distinct from the "addons" static tab above, which is the
+// management page (enable/disable, open folder, inline preview).
+type Tab = StaticTab | `addon:${string}`;
 
 export default function App() {
   return (
@@ -36,6 +41,10 @@ interface Toast {
 
 const TOAST_LIFETIME_MS = 6000;
 const TOAST_EXIT_MS = 200;
+
+async function fetchAddons(): Promise<AddonManifest[]> {
+  return window.kiln.listAddons();
+}
 
 function AppShell() {
   const { settings, loaded } = useSettings();
@@ -78,6 +87,19 @@ function AppShell() {
   useEffect(() => {
     window.kiln.setupDetect().then((r) => setSetupReady(r.state === "ready"));
   }, []);
+
+  const { data: addons } = usePolling(fetchAddons, settings.behavior.pollingIntervalMs);
+  const enabledAddons = (addons ?? []).filter((a) => a.enabled);
+
+  // Falls back to Containers if the addon behind the currently open
+  // addon:<id> tab gets disabled or its folder disappears out from under
+  // it - same idea as the "deselect" effect in AddonsView.tsx.
+  useEffect(() => {
+    if (tab.startsWith("addon:") && !enabledAddons.some((a) => `addon:${a.id}` === tab)) {
+      setTab("containers");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, addons]);
 
   function dismissToast(id: number) {
     // Two-step removal so the exit animation (CSS, keyed off `.leaving`)
@@ -158,6 +180,19 @@ function AppShell() {
           <NavItem label="Terminal" active={tab === "terminal"} onClick={() => setTab("terminal")} />
           <NavItem label="Addons" active={tab === "addons"} onClick={() => setTab("addons")} />
           <NavItem label={t("nav.settings")} active={tab === "settings"} onClick={() => setTab("settings")} />
+          {enabledAddons.length > 0 && (
+            <>
+              <div className="nav-separator" />
+              {enabledAddons.map((a) => (
+                <NavItem
+                  key={a.id}
+                  label={`${a.icon || "🧩"} ${a.name}`}
+                  active={tab === `addon:${a.id}`}
+                  onClick={() => setTab(`addon:${a.id}`)}
+                />
+              ))}
+            </>
+          )}
         </div>
         <div className="main">
           {tab === "containers" && <ContainersView />}
@@ -167,6 +202,18 @@ function AppShell() {
           {tab === "terminal" && <TerminalView />}
           {tab === "addons" && <AddonsView />}
           {tab === "settings" && <SettingsView />}
+          {tab.startsWith("addon:") &&
+            (() => {
+              const addon = enabledAddons.find((a) => `addon:${a.id}` === tab);
+              return addon ? (
+                <div>
+                  <h1>
+                    {addon.icon || "🧩"} {addon.name}
+                  </h1>
+                  <AddonFrame addon={addon} key={addon.id} />
+                </div>
+              ) : null;
+            })()}
         </div>
         <div className="toast-stack">
           {toasts.map((tt) => (

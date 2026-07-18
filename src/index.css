@@ -179,6 +179,12 @@ select:focus-visible,
   font-weight: 500;
 }
 
+.nav-separator {
+  height: 1px;
+  margin: 10px 16px;
+  background: var(--border);
+}
+
 .nav-item:hover {
   color: var(--text);
   background: var(--panel-raised);
