@@ -361,6 +361,62 @@ select:hover {
   align-items: center;
 }
 
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--muted);
+  min-width: 220px;
+}
+
+.search-box input {
+  border: none;
+  background: transparent;
+  padding: 0;
+  flex: 1;
+  box-shadow: none;
+  color: var(--text);
+}
+
+.search-box input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.disk-usage-card {
+  margin-bottom: 16px;
+}
+
+.disk-usage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.disk-usage-breakdown {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.disk-usage-result {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 7px;
+  background: var(--accent-soft);
+}
+
 .card {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -805,6 +861,86 @@ select:hover {
   width: 480px;
   max-height: 85vh;
   overflow-y: auto;
+}
+
+.modal-volume {
+  width: 640px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.volume-browser {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.volume-browser-breadcrumb {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 12px;
+}
+
+.volume-browser-crumb {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.volume-browser-crumb:hover {
+  text-decoration: underline;
+}
+
+.volume-browser-body {
+  display: flex;
+  height: 220px;
+}
+
+.volume-browser-list {
+  width: 45%;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  padding: 4px;
+}
+
+.volume-browser-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+.volume-browser-entry:hover {
+  background: var(--panel-raised);
+}
+
+.volume-browser-entry-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.volume-browser-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 8px;
+}
+
+.volume-browser-preview-name {
+  margin-bottom: 6px;
+}
+
+.volume-browser-preview .log-pre {
+  padding: 0;
+  color: var(--text);
+  font-size: 11.5px;
 }
 
 .modal-title {

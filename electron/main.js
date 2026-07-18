@@ -295,6 +295,14 @@ ipcMain.handle("kiln:remove-network", (_e, name) => apiRequest("DELETE", `/netwo
 ipcMain.handle("kiln:volumes", () => apiRequest("GET", "/volumes"));
 ipcMain.handle("kiln:create-volume", (_e, name) => apiRequest("POST", "/volumes", { name }));
 ipcMain.handle("kiln:remove-volume", (_e, name) => apiRequest("DELETE", `/volumes/${encodeURIComponent(name)}`));
+ipcMain.handle("kiln:disk-usage", () => apiRequest("GET", "/disk-usage"));
+ipcMain.handle("kiln:gc", () => apiRequest("POST", "/gc"));
+ipcMain.handle("kiln:list-volume-files", (_e, { name, path }) =>
+  apiRequest("GET", `/volumes/${encodeURIComponent(name)}/files?path=${encodeURIComponent(path || "")}`),
+);
+ipcMain.handle("kiln:read-volume-file", (_e, { name, path }) =>
+  apiRequest("GET", `/volumes/${encodeURIComponent(name)}/files/content?path=${encodeURIComponent(path)}`),
+);
 
 // kilnd's `host_path` is a path inside WSL2's own filesystem (kilnd has
 // no notion of "the Windows side" at all) - WSL2 exposes its filesystem

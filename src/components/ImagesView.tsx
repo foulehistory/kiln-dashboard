@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { usePolling } from "../usePolling";
 import ConfirmDialog from "./ConfirmDialog";
+import DiskUsageCard from "./DiskUsageCard";
 import { useSettings } from "../settings/SettingsContext";
 import { notify } from "../notifications/notify";
+import { formatBytes } from "../format";
+import { SearchIcon } from "./icons";
 import type { ImageInfo } from "../types";
 
 async function fetchImages() {
@@ -22,6 +25,7 @@ export default function ImagesView() {
   const [pullRef, setPullRef] = useState("");
   const [pulling, setPulling] = useState(false);
   const [pullError, setPullError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   async function remove(img: ImageInfo) {
     setBusy(img.id);
@@ -56,6 +60,8 @@ export default function ImagesView() {
       <h1>Images</h1>
       {error && <div className="empty-state">Could not reach kilnd - is it running? ({error})</div>}
 
+      <DiskUsageCard />
+
       <form className="toolbar" onSubmit={pull}>
         <input
           value={pullRef}
@@ -76,10 +82,21 @@ export default function ImagesView() {
       </form>
       {pullError && <div className="updates-error" style={{ marginBottom: 12 }}>{pullError}</div>}
       {removeError && <div className="updates-error" style={{ marginBottom: 12 }}>{removeError}</div>}
+      {images && images.length > 0 && (
+        <div className="toolbar">
+          <div className="search-box">
+            <SearchIcon />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter by repository or tag…" />
+          </div>
+        </div>
+      )}
       {!error && (!images || images.length === 0) && (
         <div className="empty-state">No images yet - `kiln pull &lt;name&gt;` or `kiln build` one.</div>
       )}
-      {images && images.length > 0 && (
+      {images && images.length > 0 && filteredImages(images, search).length === 0 && (
+        <div className="empty-state">No images match "{search}".</div>
+      )}
+      {images && filteredImages(images, search).length > 0 && (
         <table>
           <thead>
             <tr>
@@ -92,7 +109,7 @@ export default function ImagesView() {
             </tr>
           </thead>
           <tbody>
-            {images.map((img) => (
+            {filteredImages(images, search).map((img) => (
               <tr key={img.id}>
                 <td>{img.repository ?? <span className="muted">&lt;none&gt;</span>}</td>
                 <td>{img.tag ?? <span className="muted">&lt;none&gt;</span>}</td>
@@ -130,9 +147,8 @@ export default function ImagesView() {
   );
 }
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KiB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MiB`;
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GiB`;
+function filteredImages(images: ImageInfo[], search: string): ImageInfo[] {
+  const q = search.trim().toLowerCase();
+  if (!q) return images;
+  return images.filter((img) => (img.repository ?? "").toLowerCase().includes(q) || (img.tag ?? "").toLowerCase().includes(q) || img.id.includes(q));
 }

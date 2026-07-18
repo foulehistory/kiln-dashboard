@@ -34,11 +34,31 @@ export interface NetworkInfo {
   containers: NetworkContainer[];
 }
 
+export interface DiskUsage {
+  blobs_bytes: number;
+  layers_bytes: number;
+  volumes_bytes: number;
+  containers_bytes: number;
+  total_bytes: number;
+}
+
+export interface GcResult {
+  blobs_removed: number;
+  bytes_freed: number;
+  images_removed: number;
+}
+
 export interface VolumeInfo {
   name: string;
   containers: string[];
   size_bytes: number;
   host_path: string;
+}
+
+export interface VolumeFileEntry {
+  name: string;
+  is_dir: boolean;
+  size_bytes: number;
 }
 
 export interface Stats {
@@ -155,6 +175,10 @@ export interface KilnApi {
   createVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   removeVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   openVolumeFolder(hostPath: string): Promise<{ ok: boolean; error?: string }>;
+  diskUsage(): Promise<ApiResult<DiskUsage>>;
+  gc(): Promise<ApiResult<GcResult>>;
+  listVolumeFiles(name: string, path: string): Promise<ApiResult<VolumeFileEntry[] | string>>;
+  readVolumeFile(name: string, path: string): Promise<ApiResult<string>>;
 
   getSettings(): Promise<AppSettings>;
   setSettings(patch: DeepPartial<AppSettings>): Promise<AppSettings>;

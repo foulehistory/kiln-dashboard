@@ -6,7 +6,7 @@ import ProjectDetailView from "./ProjectDetailView";
 import ConfirmDialog from "./ConfirmDialog";
 import NewContainerModal from "./NewContainerModal";
 import { useSettings } from "../settings/SettingsContext";
-import { PlayIcon, StopIcon, TrashIcon } from "./icons";
+import { PlayIcon, StopIcon, TrashIcon, RestartIcon, SearchIcon } from "./icons";
 import type { ContainerInfo, Stats } from "../types";
 
 async function fetchContainers() {
@@ -26,6 +26,8 @@ export default function ContainersView() {
   const [openProject, setOpenProject] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
   const [showNewContainer, setShowNewContainer] = useState(false);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const runningIds = (containers ?? [])
     .filter((c) => c.status === "running")
@@ -84,13 +86,41 @@ export default function ContainersView() {
     await window.kiln.remove(id);
     setBusy(null);
   }
+  // Safe to run back-to-back with no delay: kilnd's stop only returns
+  // once the container's cgroup is confirmed empty (SIGTERM, then
+  // SIGKILL after a grace period if needed - see stop.rs), never while
+  // the old process might still be exiting.
+  async function restart(id: string) {
+    setBusy(id);
+    await window.kiln.stop(id);
+    await window.kiln.startExisting(id);
+    setBusy(null);
+  }
 
-  const { groups, standalone } = groupByProject(containers ?? []);
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
+  const { groups: allGroups, standalone: allStandalone } = groupByProject(containers ?? []);
+  const q = search.trim().toLowerCase();
+  const groups = q ? allGroups.filter((g) => g.project.toLowerCase().includes(q) || g.containers.some((c) => c.image.toLowerCase().includes(q))) : allGroups;
+  const standalone = q ? allStandalone.filter((c) => c.name.toLowerCase().includes(q) || c.image.toLowerCase().includes(q)) : allStandalone;
+  const selectedStandalone = standalone.filter((c) => selected.has(c.id));
+
+  // Deliberately looked up from the *unfiltered* lists - a detail view,
+  // once open, shouldn't disappear just because the search box (not
+  // rendered on this branch at all) happens to hold text that no longer
+  // matches it.
+  //
   // If the open project's last container just disappeared (e.g. removed
   // elsewhere), there's no group left to show - fall through to the list
   // instead of rendering a detail view for a project that no longer exists.
-  const openGroup = openProject ? groups.find((g) => g.project === openProject) : undefined;
+  const openGroup = openProject ? allGroups.find((g) => g.project === openProject) : undefined;
   if (openGroup) {
     return <ProjectDetailView project={openGroup.project} containers={openGroup.containers} onBack={() => setOpenProject(null)} />;
   }
@@ -99,7 +129,7 @@ export default function ContainersView() {
   // case, so it can't collide with an actual project name. Reuses
   // ProjectDetailView as a one-item "project" - same log panel, same
   // start/stop/remove, no separate component needed.
-  const openStandalone = openProject ? standalone.find((c) => c.id === openProject) : undefined;
+  const openStandalone = openProject ? allStandalone.find((c) => c.id === openProject) : undefined;
   if (openStandalone) {
     return <ProjectDetailView project={openStandalone.name} containers={[openStandalone]} onBack={() => setOpenProject(null)} />;
   }
@@ -112,7 +142,36 @@ export default function ContainersView() {
           + New container
         </button>
       </div>
+      <div className="toolbar">
+        <div className="search-box">
+          <SearchIcon />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter by name or image…" />
+        </div>
+        {selectedStandalone.length > 0 && (
+          <div className="bulk-bar">
+            <span className="muted">{selectedStandalone.length} selected</span>
+            <button onClick={() => selectedStandalone.filter((c) => c.status !== "running").forEach((c) => start(c.id))}>Start</button>
+            <button onClick={() => confirmStop(`Stop ${selectedStandalone.length} selected container(s)?`, () => selectedStandalone.filter((c) => c.status === "running").forEach((c) => stop(c.id)))}>
+              Stop
+            </button>
+            <button
+              className="danger"
+              onClick={() =>
+                confirmRemove(`Remove ${selectedStandalone.length} selected container(s)?`, () => {
+                  selectedStandalone.forEach((c) => remove(c.id));
+                  setSelected(new Set());
+                })
+              }
+            >
+              Remove
+            </button>
+          </div>
+        )}
+      </div>
       {error && <div className="empty-state">Could not reach kilnd - is it running? ({error})</div>}
+      {!error && containers && containers.length > 0 && groups.length === 0 && standalone.length === 0 && (
+        <div className="empty-state">No containers match "{search}".</div>
+      )}
       {!error && (!containers || containers.length === 0) && (
         <div className="empty-state">No containers yet - start one with `kiln run` or `kiln-compose up`.</div>
       )}
@@ -120,6 +179,7 @@ export default function ContainersView() {
         <table>
           <thead>
             <tr>
+              <th style={{ width: 28 }}></th>
               <th>Name</th>
               <th>Image</th>
               <th>Status</th>
@@ -138,6 +198,7 @@ export default function ContainersView() {
               const anyBusy = g.containers.some((c) => busy === c.id);
               return (
                 <tr key={`group:${g.project}`} className="group-row" onClick={() => setOpenProject(g.project)}>
+                  <td></td>
                   <td>
                     <span className="chevron">›</span>
                     <span className={`status-dot ${running.length > 0 ? "running" : "exited"}`} />
@@ -183,6 +244,11 @@ export default function ContainersView() {
                             <StopIcon />
                           </button>
                         )}
+                        {running.length > 0 && (
+                          <button className="icon-btn" title="Restart" onClick={() => running.forEach((c) => restart(c.id))}>
+                            <RestartIcon />
+                          </button>
+                        )}
                         <button
                           className="icon-btn danger"
                           title="Remove"
@@ -206,6 +272,9 @@ export default function ContainersView() {
               const running = c.status === "running";
               return (
                 <tr key={c.id} onClick={() => setOpenProject(c.id)} style={{ cursor: "pointer" }}>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelected(c.id)} />
+                  </td>
                   <td>
                     {c.name}
                     <div className="muted mono">{c.id.slice(0, 12)}</div>
@@ -234,6 +303,11 @@ export default function ContainersView() {
                         {running && (
                           <button className="icon-btn" title="Stop" onClick={() => confirmStop(`Stop "${c.name}"?`, () => stop(c.id))}>
                             <StopIcon />
+                          </button>
+                        )}
+                        {running && (
+                          <button className="icon-btn" title="Restart" onClick={() => restart(c.id)}>
+                            <RestartIcon />
                           </button>
                         )}
                         <button

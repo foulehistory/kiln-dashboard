@@ -4,6 +4,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import VolumeDetailModal from "./VolumeDetailModal";
 import { formatBytes } from "../format";
 import { useSettings } from "../settings/SettingsContext";
+import { SearchIcon } from "./icons";
 import type { VolumeInfo } from "../types";
 
 async function fetchVolumes() {
@@ -28,6 +29,7 @@ export default function VolumesView() {
   const [confirm, setConfirm] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [detail, setDetail] = useState<VolumeInfo | null>(null);
+  const [search, setSearch] = useState("");
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -73,10 +75,21 @@ export default function VolumesView() {
       </form>
       {actionError && <div className="updates-error" style={{ marginBottom: 12 }}>{actionError}</div>}
 
+      {volumes && volumes.length > 0 && (
+        <div className="toolbar">
+          <div className="search-box">
+            <SearchIcon />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter by name…" />
+          </div>
+        </div>
+      )}
       {!error && (!volumes || volumes.length === 0) && (
         <div className="empty-state">No volumes yet - `kiln volume create &lt;name&gt;`.</div>
       )}
-      {volumes && volumes.length > 0 && (
+      {volumes && volumes.length > 0 && filteredVolumes(volumes, search).length === 0 && (
+        <div className="empty-state">No volumes match "{search}".</div>
+      )}
+      {volumes && filteredVolumes(volumes, search).length > 0 && (
         <table>
           <thead>
             <tr>
@@ -87,7 +100,7 @@ export default function VolumesView() {
             </tr>
           </thead>
           <tbody>
-            {volumes.map((v) => (
+            {filteredVolumes(volumes, search).map((v) => (
               <tr key={v.name} onClick={() => setDetail(v)} style={{ cursor: "pointer" }}>
                 <td className="mono">{v.name}</td>
                 <td className="muted">{formatBytes(v.size_bytes)}</td>
@@ -122,4 +135,10 @@ export default function VolumesView() {
       {detail && <VolumeDetailModal volume={detail} onClose={() => setDetail(null)} />}
     </div>
   );
+}
+
+function filteredVolumes(volumes: VolumeInfo[], search: string): VolumeInfo[] {
+  const q = search.trim().toLowerCase();
+  if (!q) return volumes;
+  return volumes.filter((v) => v.name.toLowerCase().includes(q));
 }

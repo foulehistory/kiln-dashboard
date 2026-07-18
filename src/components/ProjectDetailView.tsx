@@ -4,7 +4,7 @@ import { serviceName } from "../projects";
 import { formatBytes } from "../format";
 import ConfirmDialog from "./ConfirmDialog";
 import Sparkline from "./Sparkline";
-import { PlayIcon, StopIcon, TrashIcon } from "./icons";
+import { PlayIcon, StopIcon, TrashIcon, RestartIcon } from "./icons";
 import { useSettings } from "../settings/SettingsContext";
 import type { ContainerInfo, Stats } from "../types";
 
@@ -129,6 +129,14 @@ export default function ProjectDetailView({
     await window.kiln.startExisting(id);
     setBusy(null);
   }
+  // Safe back-to-back: kilnd's stop only returns once the cgroup is
+  // confirmed empty (see kiln-cli's stop_container), never mid-exit.
+  async function restart(id: string) {
+    setBusy(id);
+    await window.kiln.stop(id);
+    await window.kiln.startExisting(id);
+    setBusy(null);
+  }
   async function remove(id: string) {
     setBusy(id);
     await window.kiln.remove(id);
@@ -247,6 +255,18 @@ export default function ProjectDetailView({
                           }}
                         >
                           <StopIcon />
+                        </button>
+                      )}
+                      {running && (
+                        <button
+                          className="icon-btn"
+                          title="Restart"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            restart(c.id);
+                          }}
+                        >
+                          <RestartIcon />
                         </button>
                       )}
                       <button

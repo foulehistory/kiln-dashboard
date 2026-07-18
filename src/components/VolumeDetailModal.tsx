@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatBytes } from "../format";
+import VolumeFileBrowser from "./VolumeFileBrowser";
 import type { VolumeInfo } from "../types";
 
 export default function VolumeDetailModal({ volume, onClose }: { volume: VolumeInfo; onClose: () => void }) {
@@ -16,17 +17,19 @@ export default function VolumeDetailModal({ volume, onClose }: { volume: VolumeI
 
   return (
     <div className="confirm-overlay" onClick={onClose}>
-      <div className="confirm-box" onClick={(e) => e.stopPropagation()}>
+      <div className="confirm-box modal-volume" onClick={(e) => e.stopPropagation()}>
         <h2 className="modal-title">{volume.name}</h2>
 
-        <div className="form-field">
-          <label className="form-label">Size</label>
-          <div>{formatBytes(volume.size_bytes)}</div>
-        </div>
+        <div className="form-row">
+          <div className="form-field">
+            <label className="form-label">Size</label>
+            <div>{formatBytes(volume.size_bytes)}</div>
+          </div>
 
-        <div className="form-field">
-          <label className="form-label">Used by</label>
-          <div>{volume.containers.length === 0 ? <span className="muted">not attached to any container</span> : volume.containers.join(", ")}</div>
+          <div className="form-field">
+            <label className="form-label">Used by</label>
+            <div>{volume.containers.length === 0 ? <span className="muted">not attached to any container</span> : volume.containers.join(", ")}</div>
+          </div>
         </div>
 
         <div className="form-field">
@@ -34,6 +37,11 @@ export default function VolumeDetailModal({ volume, onClose }: { volume: VolumeI
           <div className="mono muted" style={{ wordBreak: "break-all" }}>
             {volume.host_path}
           </div>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Files</label>
+          <VolumeFileBrowser volumeName={volume.name} />
         </div>
 
         {openError && <div className="updates-error" style={{ marginBottom: 10 }}>{openError}</div>}
