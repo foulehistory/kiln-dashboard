@@ -58,7 +58,7 @@ function AppShell() {
   }, [settings.appearance.density]);
 
   useEffect(() => {
-    document.documentElement.style.fontSize = `${14 * settings.appearance.fontScale}px`;
+    window.kiln.setZoomFactor(settings.appearance.fontScale);
   }, [settings.appearance.fontScale]);
 
   useEffect(() => {

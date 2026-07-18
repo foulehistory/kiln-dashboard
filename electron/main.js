@@ -802,7 +802,16 @@ ipcMain.handle("kiln:check-dashboard-update", async () => {
 });
 
 ipcMain.handle("kiln:download-dashboard-update", () => autoUpdater.downloadUpdate());
-ipcMain.handle("kiln:install-dashboard-update", () => autoUpdater.quitAndInstall());
+// `quitAndInstall()` with no args runs the NSIS installer non-silently
+// (BaseUpdater.js defaults both args to false) - that's the wizard
+// ("pour qui ?", "réinstaller/mettre à jour ?") showing up on every
+// auto-update despite the user having already gone through it once on
+// first install. `isSilent: true` passes NSIS `/S`, which skips every
+// page regardless of the `oneClick`/`allowToChangeInstallationDirectory`
+// build config (those only shape the *non-silent* wizard, kept as-is for
+// the initial manual install); `isForceRunAfter: true` is required
+// separately - silent installs don't relaunch the app unless asked to.
+ipcMain.handle("kiln:install-dashboard-update", () => autoUpdater.quitAndInstall(true, true));
 
 autoUpdater.on("download-progress", (progress) => {
   mainWindow?.webContents.send("kiln:dashboard-update-progress", { percent: progress.percent });

@@ -4,7 +4,7 @@
 // it, `window.kiln` would simply not exist on the page.
 "use strict";
 
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webFrame } = require("electron");
 
 contextBridge.exposeInMainWorld("kiln", {
   containers: () => ipcRenderer.invoke("kiln:containers"),
@@ -26,6 +26,15 @@ contextBridge.exposeInMainWorld("kiln", {
   getAppVersion: () => ipcRenderer.invoke("app:get-version"),
   notify: (title, body, silent) => ipcRenderer.invoke("notify", { title, body, silent }),
   exportText: (defaultName, content) => ipcRenderer.invoke("export-text", { defaultName, content }),
+  // Settings > Apparence's "taille de police de l'interface" - this app's
+  // CSS uses plain `px` throughout, not `rem`, so scaling the root
+  // element's font-size (the first thing tried here) has no visible
+  // effect on anything. Chromium's own page zoom scales everything
+  // uniformly (text, padding, icons) without needing every stylesheet
+  // rule rewritten to relative units - `webFrame` is only reachable from
+  // the preload script (Node-enabled) even though the renderer itself is
+  // sandboxed/no-nodeIntegration.
+  setZoomFactor: (factor) => webFrame.setZoomFactor(factor),
   stats: (id) => ipcRenderer.invoke("kiln:stats", id),
   logs: (id) => ipcRenderer.invoke("kiln:logs", id),
   stop: (id) => ipcRenderer.invoke("kiln:stop", id),

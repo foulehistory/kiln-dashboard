@@ -161,6 +161,7 @@ export interface KilnApi {
   getAppVersion(): Promise<string>;
   notify(title: string, body: string, silent?: boolean): Promise<void>;
   exportText(defaultName: string, content: string): Promise<{ ok: boolean; filePath?: string }>;
+  setZoomFactor(factor: number): void;
   stats(id: string): Promise<ApiResult<Stats>>;
   logs(id: string): Promise<ApiResult<string>>;
   stop(id: string): Promise<ApiResult<null>>;
