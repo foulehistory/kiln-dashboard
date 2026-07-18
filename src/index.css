@@ -115,9 +115,16 @@ select:focus-visible,
   outline-offset: 2px;
 }
 
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
 .app {
   display: flex;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
 }
 
 .sidebar {
@@ -130,6 +137,15 @@ select:focus-visible,
   flex-direction: column;
 }
 
+.brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 12px 16px 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -137,9 +153,6 @@ select:focus-visible,
   font-weight: 700;
   font-size: 15px;
   letter-spacing: 0.1px;
-  padding: 2px 16px 16px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 10px;
 }
 
 .brand::before {
@@ -175,10 +188,6 @@ select:focus-visible,
   color: var(--text);
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px rgba(91, 141, 255, 0.25);
-}
-
-.sidebar-spacer {
-  flex: 1;
 }
 
 .theme-toggle {
@@ -621,79 +630,52 @@ select:hover {
   border-top-color: var(--bad);
 }
 
-/* --- updates widget ----------------------------------------------------- */
+/* --- update banner -------------------------------------------------------- */
 
-.updates-widget {
-  margin: 8px 16px 0;
-  font-size: 12px;
+.update-banners {
+  flex-shrink: 0;
 }
 
-.update-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  margin-right: 5px;
-  vertical-align: middle;
-  box-shadow: 0 0 4px 1px var(--accent-soft);
-}
-
-.updates-check-btn {
-  width: 100%;
+.update-banner {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.updates-results {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
-  background: var(--bg);
+  gap: 12px;
+  padding: 9px 16px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent);
+  font-size: 13px;
   animation: fade-in 0.2s ease both;
 }
 
-.updates-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.update-banner + .update-banner {
+  border-top: 1px solid var(--border);
 }
 
-.updates-action {
-  width: 100%;
-  margin-top: 6px;
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+.update-banner-close {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--muted);
 }
 
-.updates-progress {
-  margin-top: 6px;
-  display: flex;
-  align-items: center;
+.update-banner-close:hover {
+  color: var(--text);
+  transform: none;
+  box-shadow: none;
+  border-color: transparent;
 }
 
 .updates-error {
-  margin-top: 6px;
   color: var(--bad);
   font-size: 11px;
   word-break: break-word;
-}
-
-.updates-uptodate {
-  margin-top: 8px;
-  text-align: center;
-}
-
-.updates-recheck {
-  width: 100%;
-  margin-top: 8px;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  text-decoration: underline;
 }
 
 /* --- confirm dialog ------------------------------------------------------ */
@@ -1145,19 +1127,16 @@ select:hover {
 
 .bell-wrap {
   position: relative;
-  margin: 4px 10px 8px;
+  flex-shrink: 0;
 }
 
 .bell-btn {
   position: relative;
-  width: 100%;
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 8px 10px;
   background: transparent;
   border: 1px solid transparent;
   box-shadow: none;
   color: var(--muted);
+  margin: 0;
 }
 
 .bell-btn:hover {
@@ -1170,8 +1149,8 @@ select:hover {
 
 .bell-badge {
   position: absolute;
-  top: 2px;
-  left: 18px;
+  top: -2px;
+  right: -2px;
   background: var(--bad);
   color: white;
   font-size: 9px;
@@ -1185,7 +1164,7 @@ select:hover {
 
 .bell-panel {
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   left: 0;
   width: 280px;
   max-height: 360px;

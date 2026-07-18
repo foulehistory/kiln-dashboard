@@ -5,7 +5,7 @@ import NetworksView from "./components/NetworksView";
 import VolumesView from "./components/VolumesView";
 import TerminalView from "./components/TerminalView";
 import SettingsView from "./components/SettingsView";
-import UpdatesWidget from "./components/UpdatesWidget";
+import UpdateBanner from "./components/UpdateBanner";
 import SetupWizard from "./components/SetupWizard";
 import NotificationBell from "./components/NotificationBell";
 import { CloseIcon } from "./components/icons";
@@ -140,39 +140,42 @@ function AppShell() {
   }
 
   return (
-    <div className="app">
-      <div className="sidebar">
-        <div className="brand">
-          kiln<span>d</span>ash
-        </div>
-        <NavItem label="Containers" active={tab === "containers"} onClick={() => setTab("containers")} />
-        <NavItem label="Images" active={tab === "images"} onClick={() => setTab("images")} />
-        <NavItem label="Networks" active={tab === "networks"} onClick={() => setTab("networks")} />
-        <NavItem label="Volumes" active={tab === "volumes"} onClick={() => setTab("volumes")} />
-        <NavItem label="Terminal" active={tab === "terminal"} onClick={() => setTab("terminal")} />
-        <NavItem label={t("nav.settings")} active={tab === "settings"} onClick={() => setTab("settings")} />
-        <div className="sidebar-spacer" />
-        <NotificationBell />
-        <UpdatesWidget />
-      </div>
-      <div className="main">
-        {tab === "containers" && <ContainersView />}
-        {tab === "images" && <ImagesView />}
-        {tab === "networks" && <NetworksView />}
-        {tab === "volumes" && <VolumesView />}
-        {tab === "terminal" && <TerminalView />}
-        {tab === "settings" && <SettingsView />}
-      </div>
-      <div className="toast-stack">
-        {toasts.map((tt) => (
-          <div className={`toast${tt.leaving ? " leaving" : ""}`} key={tt.id}>
-            <button className="toast-close" title="Dismiss" onClick={() => dismissToast(tt.id)}>
-              <CloseIcon />
-            </button>
-            <strong>{tt.title}</strong>
-            <div className="muted">{tt.body}</div>
+    <div className="app-root">
+      <UpdateBanner />
+      <div className="app">
+        <div className="sidebar">
+          <div className="brand-row">
+            <div className="brand">
+              kiln<span>d</span>ash
+            </div>
+            <NotificationBell />
           </div>
-        ))}
+          <NavItem label="Containers" active={tab === "containers"} onClick={() => setTab("containers")} />
+          <NavItem label="Images" active={tab === "images"} onClick={() => setTab("images")} />
+          <NavItem label="Networks" active={tab === "networks"} onClick={() => setTab("networks")} />
+          <NavItem label="Volumes" active={tab === "volumes"} onClick={() => setTab("volumes")} />
+          <NavItem label="Terminal" active={tab === "terminal"} onClick={() => setTab("terminal")} />
+          <NavItem label={t("nav.settings")} active={tab === "settings"} onClick={() => setTab("settings")} />
+        </div>
+        <div className="main">
+          {tab === "containers" && <ContainersView />}
+          {tab === "images" && <ImagesView />}
+          {tab === "networks" && <NetworksView />}
+          {tab === "volumes" && <VolumesView />}
+          {tab === "terminal" && <TerminalView />}
+          {tab === "settings" && <SettingsView />}
+        </div>
+        <div className="toast-stack">
+          {toasts.map((tt) => (
+            <div className={`toast${tt.leaving ? " leaving" : ""}`} key={tt.id}>
+              <button className="toast-close" title="Dismiss" onClick={() => dismissToast(tt.id)}>
+                <CloseIcon />
+              </button>
+              <strong>{tt.title}</strong>
+              <div className="muted">{tt.body}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
