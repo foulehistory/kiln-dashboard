@@ -2,6 +2,7 @@ import { useState } from "react";
 import { usePolling } from "../usePolling";
 import ConfirmDialog from "./ConfirmDialog";
 import DiskUsageCard from "./DiskUsageCard";
+import ImageDetailModal from "./ImageDetailModal";
 import { useSettings } from "../settings/SettingsContext";
 import { notify } from "../notifications/notify";
 import { formatBytes } from "../format";
@@ -26,6 +27,7 @@ export default function ImagesView() {
   const [pulling, setPulling] = useState(false);
   const [pullError, setPullError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [detail, setDetail] = useState<ImageInfo | null>(null);
 
   async function remove(img: ImageInfo) {
     setBusy(img.id);
@@ -110,13 +112,13 @@ export default function ImagesView() {
           </thead>
           <tbody>
             {filteredImages(images, search).map((img) => (
-              <tr key={img.id}>
+              <tr key={img.id} onClick={() => setDetail(img)} style={{ cursor: "pointer" }}>
                 <td>{img.repository ?? <span className="muted">&lt;none&gt;</span>}</td>
                 <td>{img.tag ?? <span className="muted">&lt;none&gt;</span>}</td>
                 <td className="mono muted">{img.id.slice(0, 16)}</td>
                 <td>{img.layers}</td>
                 <td>{formatBytes(img.size_bytes)}</td>
-                <td>
+                <td onClick={(e) => e.stopPropagation()}>
                   {busy === img.id ? (
                     <span className="muted">
                       <span className="spinner" />
@@ -141,6 +143,13 @@ export default function ImagesView() {
           message={`Remove image "${confirm.repository ? `${confirm.repository}:${confirm.tag}` : confirm.id.slice(0, 16)}"?`}
           onConfirm={() => remove(confirm)}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+      {detail && (
+        <ImageDetailModal
+          imageId={detail.id}
+          label={detail.repository ? `${detail.repository}:${detail.tag}` : detail.id.slice(0, 16)}
+          onClose={() => setDetail(null)}
         />
       )}
     </div>

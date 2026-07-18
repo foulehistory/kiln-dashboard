@@ -1,6 +1,6 @@
 {
   "name": "kiln-dashboard",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "private": true,
   "description": "Electron + React dashboard for Kiln: live containers, images, network topology, and an in-browser exec terminal.",
   "main": "electron/main.js",

@@ -9,6 +9,7 @@ const { contextBridge, ipcRenderer, webFrame } = require("electron");
 contextBridge.exposeInMainWorld("kiln", {
   containers: () => ipcRenderer.invoke("kiln:containers"),
   images: () => ipcRenderer.invoke("kiln:images"),
+  inspectImage: (id) => ipcRenderer.invoke("kiln:inspect-image", id),
   removeImage: (id) => ipcRenderer.invoke("kiln:remove-image", id),
   pullImage: (reference) => ipcRenderer.invoke("kiln:pull-image", reference),
   networks: () => ipcRenderer.invoke("kiln:networks"),

@@ -20,6 +20,23 @@ export interface ImageInfo {
   size_bytes: number;
 }
 
+export interface LayerDetail {
+  hash: string;
+  entry_count: number;
+  size_bytes: number;
+}
+
+export interface ImageDetail {
+  id: string;
+  repository: string | null;
+  tag: string | null;
+  env: [string, string][];
+  cmd: string | null;
+  workdir: string;
+  exposed_ports: [number, string][];
+  layers: LayerDetail[];
+}
+
 export interface NetworkContainer {
   id: string;
   name: string;
@@ -166,6 +183,7 @@ export interface SetupAdvanceResult {
 export interface KilnApi {
   containers(): Promise<ApiResult<ContainerInfo[]>>;
   images(): Promise<ApiResult<ImageInfo[]>>;
+  inspectImage(id: string): Promise<ApiResult<ImageDetail | string>>;
   removeImage(id: string): Promise<ApiResult<{ message: string } | string>>;
   pullImage(reference: string): Promise<ApiResult<{ id: string } | string>>;
   networks(): Promise<ApiResult<NetworkInfo[]>>;

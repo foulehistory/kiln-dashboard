@@ -282,6 +282,7 @@ app.on("activate", () => {
 
 ipcMain.handle("kiln:containers", () => apiRequest("GET", "/containers"));
 ipcMain.handle("kiln:images", () => apiRequest("GET", "/images"));
+ipcMain.handle("kiln:inspect-image", (_e, id) => apiRequest("GET", `/images/${encodeURIComponent(id)}`));
 ipcMain.handle("kiln:remove-image", (_e, id) => apiRequest("DELETE", `/images/${encodeURIComponent(id)}`));
 // A pull can take a while (real network I/O against a registry) - fine to
 // just await it here, since each Electron IPC invoke already runs

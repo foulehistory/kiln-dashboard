@@ -925,6 +925,27 @@ select:hover {
   overflow-y: auto;
 }
 
+.image-layers {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.image-layer-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.image-layer-row:last-child {
+  border-bottom: none;
+}
+
 .volume-browser {
   border: 1px solid var(--border);
   border-radius: 8px;
