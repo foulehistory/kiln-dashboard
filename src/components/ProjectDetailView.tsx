@@ -4,7 +4,8 @@ import { serviceName } from "../projects";
 import { formatBytes } from "../format";
 import ConfirmDialog from "./ConfirmDialog";
 import Sparkline from "./Sparkline";
-import { PlayIcon, StopIcon, TrashIcon, RestartIcon } from "./icons";
+import EditLimitsModal from "./EditLimitsModal";
+import { PlayIcon, StopIcon, TrashIcon, RestartIcon, GaugeIcon } from "./icons";
 import { useSettings } from "../settings/SettingsContext";
 import type { ContainerInfo, Stats } from "../types";
 
@@ -47,6 +48,7 @@ export default function ProjectDetailView({
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
   const [history, setHistory] = useState<Record<string, StatsSample[]>>({});
   const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
+  const [editLimits, setEditLimits] = useState<ContainerInfo | null>(null);
   // Previous raw sample + its wall-clock time, purely to turn
   // `cpu_usage_usec` (a monotonically increasing cumulative counter) into
   // a percent-of-one-core rate between two polls - not itself displayed.
@@ -270,6 +272,16 @@ export default function ProjectDetailView({
                         </button>
                       )}
                       <button
+                        className="icon-btn"
+                        title="Edit limits"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditLimits(c);
+                        }}
+                      >
+                        <GaugeIcon />
+                      </button>
+                      <button
                         className="icon-btn danger"
                         title="Remove"
                         onClick={(e) => {
@@ -335,6 +347,7 @@ export default function ProjectDetailView({
         </div>
       </div>
       {confirm && <ConfirmDialog message={confirm.message} onConfirm={confirm.action} onCancel={() => setConfirm(null)} />}
+      {editLimits && <EditLimitsModal container={editLimits} onClose={() => setEditLimits(null)} onUpdated={() => {}} />}
     </div>
   );
 }

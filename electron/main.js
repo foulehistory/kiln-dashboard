@@ -407,6 +407,7 @@ ipcMain.handle("kiln:stop", (_e, id) => apiRequest("POST", `/containers/${encode
 ipcMain.handle("kiln:start-existing", (_e, id) => apiRequest("POST", `/containers/${encodeURIComponent(id)}/start`));
 ipcMain.handle("kiln:remove", (_e, id) => apiRequest("DELETE", `/containers/${encodeURIComponent(id)}`));
 ipcMain.handle("kiln:run", (_e, spec) => apiRequest("POST", "/containers", spec));
+ipcMain.handle("kiln:update-limits", (_e, { id, memory, cpus }) => apiRequest("POST", `/containers/${encodeURIComponent(id)}/limits`, { memory, cpus }));
 
 // --- exec sessions -----------------------------------------------------
 // Each exec session is a raw socket (see kilnd/src/handlers/exec.rs's

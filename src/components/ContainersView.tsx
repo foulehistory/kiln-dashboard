@@ -5,8 +5,9 @@ import { formatBytes } from "../format";
 import ProjectDetailView from "./ProjectDetailView";
 import ConfirmDialog from "./ConfirmDialog";
 import NewContainerModal from "./NewContainerModal";
+import EditLimitsModal from "./EditLimitsModal";
 import { useSettings } from "../settings/SettingsContext";
-import { PlayIcon, StopIcon, TrashIcon, RestartIcon, SearchIcon } from "./icons";
+import { PlayIcon, StopIcon, TrashIcon, RestartIcon, SearchIcon, GaugeIcon } from "./icons";
 import type { ContainerInfo, Stats } from "../types";
 
 async function fetchContainers() {
@@ -28,6 +29,7 @@ export default function ContainersView() {
   const [showNewContainer, setShowNewContainer] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [editLimits, setEditLimits] = useState<ContainerInfo | null>(null);
 
   const runningIds = (containers ?? [])
     .filter((c) => c.status === "running")
@@ -310,6 +312,9 @@ export default function ContainersView() {
                             <RestartIcon />
                           </button>
                         )}
+                        <button className="icon-btn" title="Edit limits" onClick={() => setEditLimits(c)}>
+                          <GaugeIcon />
+                        </button>
                         <button
                           className="icon-btn danger"
                           title="Remove"
@@ -330,6 +335,7 @@ export default function ContainersView() {
       {showNewContainer && (
         <NewContainerModal onClose={() => setShowNewContainer(false)} onCreated={() => {}} />
       )}
+      {editLimits && <EditLimitsModal container={editLimits} onClose={() => setEditLimits(null)} onUpdated={() => {}} />}
     </div>
   );
 }

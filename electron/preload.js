@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld("kiln", {
   startExisting: (id) => ipcRenderer.invoke("kiln:start-existing", id),
   remove: (id) => ipcRenderer.invoke("kiln:remove", id),
   run: (spec) => ipcRenderer.invoke("kiln:run", spec),
+  updateLimits: (id, memory, cpus) => ipcRenderer.invoke("kiln:update-limits", { id, memory, cpus }),
 
   execStart: (containerId, shell) => ipcRenderer.invoke("kiln:exec-start", containerId, shell),
   execWrite: (sessionId, data) => ipcRenderer.send("kiln:exec-write", { sessionId, data }),

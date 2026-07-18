@@ -195,6 +195,7 @@ export interface KilnApi {
   startExisting(id: string): Promise<ApiResult<ContainerInfo>>;
   remove(id: string): Promise<ApiResult<null>>;
   run(spec: RunSpec): Promise<ApiResult<ContainerInfo>>;
+  updateLimits(id: string, memory?: string, cpus?: number): Promise<ApiResult<ContainerInfo | string>>;
 
   execStart(containerId: string, shell?: string): Promise<number>;
   execWrite(sessionId: number, data: string): void;
