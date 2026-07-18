@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { usePolling } from "../usePolling";
 import ConfirmDialog from "./ConfirmDialog";
+import { useSettings } from "../settings/SettingsContext";
 
 async function fetchVolumes() {
   const r = await window.kiln.volumes();
@@ -16,7 +17,8 @@ function extractError(body: unknown, status: number): string {
 }
 
 export default function VolumesView() {
-  const { data: volumes, error } = usePolling(fetchVolumes, 3000);
+  const { settings } = useSettings();
+  const { data: volumes, error } = usePolling(fetchVolumes, settings.behavior.pollingIntervalMs);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -97,7 +99,7 @@ export default function VolumesView() {
                       className="danger"
                       disabled={v.containers.length > 0}
                       title={v.containers.length > 0 ? "Remove attached containers first" : undefined}
-                      onClick={() => setConfirm(v.name)}
+                      onClick={() => (settings.behavior.confirmDestructive ? setConfirm(v.name) : remove(v.name))}
                     >
                       Remove
                     </button>

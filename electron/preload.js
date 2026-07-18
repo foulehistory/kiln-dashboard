@@ -17,6 +17,15 @@ contextBridge.exposeInMainWorld("kiln", {
   volumes: () => ipcRenderer.invoke("kiln:volumes"),
   createVolume: (name) => ipcRenderer.invoke("kiln:create-volume", name),
   removeVolume: (name) => ipcRenderer.invoke("kiln:remove-volume", name),
+
+  getSettings: () => ipcRenderer.invoke("settings:get"),
+  setSettings: (patch) => ipcRenderer.invoke("settings:set", patch),
+  resetSettings: () => ipcRenderer.invoke("settings:reset"),
+  openSettingsFolder: () => ipcRenderer.invoke("settings:open-folder"),
+  testConnection: (host, port) => ipcRenderer.invoke("settings:test-connection", { host, port }),
+  getAppVersion: () => ipcRenderer.invoke("app:get-version"),
+  notify: (title, body, silent) => ipcRenderer.invoke("notify", { title, body, silent }),
+  exportText: (defaultName, content) => ipcRenderer.invoke("export-text", { defaultName, content }),
   stats: (id) => ipcRenderer.invoke("kiln:stats", id),
   logs: (id) => ipcRenderer.invoke("kiln:logs", id),
   stop: (id) => ipcRenderer.invoke("kiln:stop", id),
@@ -24,7 +33,7 @@ contextBridge.exposeInMainWorld("kiln", {
   remove: (id) => ipcRenderer.invoke("kiln:remove", id),
   run: (spec) => ipcRenderer.invoke("kiln:run", spec),
 
-  execStart: (containerId) => ipcRenderer.invoke("kiln:exec-start", containerId),
+  execStart: (containerId, shell) => ipcRenderer.invoke("kiln:exec-start", containerId, shell),
   execWrite: (sessionId, data) => ipcRenderer.send("kiln:exec-write", { sessionId, data }),
   execClose: (sessionId) => ipcRenderer.send("kiln:exec-close", { sessionId }),
   onExecData: (callback) => {

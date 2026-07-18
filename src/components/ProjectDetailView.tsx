@@ -4,6 +4,7 @@ import { serviceName } from "../projects";
 import { formatBytes } from "../format";
 import ConfirmDialog from "./ConfirmDialog";
 import Sparkline from "./Sparkline";
+import { useSettings } from "../settings/SettingsContext";
 import type { ContainerInfo, Stats } from "../types";
 
 /** How many stats samples to keep per container for the sparklines below -
@@ -18,6 +19,17 @@ interface StatsSample {
   memBytes: number;
 }
 
+/** Settings > Logs' "lines kept in memory" - kilnd just returns the raw
+ * log file as-is, so this is purely a display-side cap on how much of it
+ * gets rendered, for the same reason the setting exists in the first
+ * place (perf on a long-running, chatty container). */
+function truncateToLastLines(text: string | null, maxLines: number): string {
+  if (!text) return "";
+  const lines = text.split("\n");
+  if (lines.length <= maxLines) return text;
+  return lines.slice(-maxLines).join("\n");
+}
+
 export default function ProjectDetailView({
   project,
   containers,
@@ -27,6 +39,8 @@ export default function ProjectDetailView({
   containers: ContainerInfo[];
   onBack: () => void;
 }) {
+  const { settings } = useSettings();
+  const interval = settings.behavior.pollingIntervalMs;
   const [selectedId, setSelectedId] = useState<string | null>(containers[0]?.id ?? null);
   const [busy, setBusy] = useState<string | null>(null);
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
@@ -84,8 +98,8 @@ export default function ProjectDetailView({
 
       return map;
     },
-    2000,
-    [runningIds],
+    interval,
+    [runningIds, interval],
   );
 
   const { data: log } = usePolling(
@@ -94,8 +108,8 @@ export default function ProjectDetailView({
       const r = await window.kiln.logs(selectedId);
       return typeof r.body === "string" ? r.body : "";
     },
-    1500,
-    [selectedId],
+    interval,
+    [selectedId, interval],
   );
 
   const logRef = useRef<HTMLPreElement>(null);
@@ -130,6 +144,21 @@ export default function ProjectDetailView({
     onBack();
   }
 
+  function confirmStop(message: string, action: () => void) {
+    if (!settings.behavior.confirmDestructive || settings.behavior.confirmOnlyForRemovals) {
+      action();
+      return;
+    }
+    setConfirm({ message, action });
+  }
+  function confirmRemove(message: string, action: () => void) {
+    if (!settings.behavior.confirmDestructive) {
+      action();
+      return;
+    }
+    setConfirm({ message, action });
+  }
+
   const selected = containers.find((c) => c.id === selectedId) ?? null;
   const anyRunning = containers.some((c) => c.status === "running");
   const anyStopped = containers.some((c) => c.status !== "running");
@@ -155,14 +184,14 @@ export default function ProjectDetailView({
           ) : (
             <>
               {anyStopped && <button onClick={startAll}>Start all</button>}
-              {anyRunning && <button onClick={stopAll}>Stop all</button>}
+              {anyRunning && <button onClick={() => confirmStop(`Stop all in "${project}"?`, stopAll)}>Stop all</button>}
               <button
                 className="danger"
                 onClick={() =>
-                  setConfirm({
-                    message: `Remove all ${containers.length} service${containers.length === 1 ? "" : "s"} in "${project}"?`,
-                    action: removeAll,
-                  })
+                  confirmRemove(
+                    `Remove all ${containers.length} service${containers.length === 1 ? "" : "s"} in "${project}"?`,
+                    removeAll,
+                  )
                 }
               >
                 Remove all
@@ -209,7 +238,7 @@ export default function ProjectDetailView({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            stop(c.id);
+                            confirmStop(`Stop "${serviceName(c, project)}"?`, () => stop(c.id));
                           }}
                         >
                           Stop
@@ -219,7 +248,7 @@ export default function ProjectDetailView({
                         className="danger"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setConfirm({ message: `Remove "${serviceName(c, project)}"?`, action: () => remove(c.id) });
+                          confirmRemove(`Remove "${serviceName(c, project)}"?`, () => remove(c.id));
                         }}
                       >
                         Remove
@@ -247,6 +276,12 @@ export default function ProjectDetailView({
                 <span className="muted mono" style={{ marginLeft: "auto" }}>
                   {selected.id.slice(0, 12)}
                 </span>
+                <button
+                  onClick={() => window.kiln.exportText(`${serviceName(selected, project)}.log`, log || "")}
+                  disabled={!log}
+                >
+                  Export
+                </button>
               </div>
               {selected.status === "running" && (history[selected.id]?.length ?? 0) >= 2 && (
                 <div className="stats-panel">
@@ -264,8 +299,8 @@ export default function ProjectDetailView({
                   </div>
                 </div>
               )}
-              <pre className="log-pre" ref={logRef}>
-                {log || "(no output yet)"}
+              <pre className="log-pre" ref={logRef} style={{ whiteSpace: settings.logs.wrapLines ? "pre-wrap" : "pre" }}>
+                {truncateToLastLines(log, settings.logs.maxLines) || "(no output yet)"}
               </pre>
             </>
           ) : (

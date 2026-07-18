@@ -3,9 +3,15 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { usePolling } from "../usePolling";
+import { useSettings } from "../settings/SettingsContext";
+import { resolveTheme } from "../theme";
+
+const DARK_XTERM_THEME = { background: "#05070a", foreground: "#d7dde5" };
+const LIGHT_XTERM_THEME = { background: "#ffffff", foreground: "#1a1d23" };
 
 export default function TerminalView() {
-  const { data: containers } = usePolling(() => window.kiln.containers().then((r) => r.body), 3000);
+  const { settings } = useSettings();
+  const { data: containers } = usePolling(() => window.kiln.containers().then((r) => r.body), settings.behavior.pollingIntervalMs);
   const running = (containers ?? []).filter((c) => c.status === "running");
 
   const [selected, setSelected] = useState<string>("");
@@ -17,8 +23,9 @@ export default function TerminalView() {
     if (!containerRef.current) return;
     const term = new Terminal({
       convertEol: true,
-      fontSize: 13,
-      theme: { background: "#000000" },
+      fontFamily: settings.terminal.fontFamily,
+      fontSize: settings.terminal.fontSize,
+      theme: settings.terminal.colorTheme === "match-app" ? (resolveTheme(settings.appearance.theme) === "light" ? LIGHT_XTERM_THEME : DARK_XTERM_THEME) : settings.terminal.colorTheme === "light" ? LIGHT_XTERM_THEME : DARK_XTERM_THEME,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -43,6 +50,29 @@ export default function TerminalView() {
       if (sessionRef.current !== null) window.kiln.execWrite(sessionRef.current, data);
     });
 
+    // Ctrl+Shift+C copy, Ctrl+Shift+V paste, Ctrl+L clear - Ctrl+C/Ctrl+V
+    // alone stay reserved for SIGINT/normal shell input, matching most
+    // terminal emulators' convention.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== "keydown") return true;
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "c") {
+        const sel = term.getSelection();
+        if (sel) navigator.clipboard.writeText(sel);
+        return false;
+      }
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "v") {
+        navigator.clipboard.readText().then((text) => {
+          if (sessionRef.current !== null) window.kiln.execWrite(sessionRef.current, text);
+        });
+        return false;
+      }
+      if (e.ctrlKey && e.key.toLowerCase() === "l" && !e.shiftKey) {
+        term.clear();
+        return false;
+      }
+      return true;
+    });
+
     return () => {
       window.removeEventListener("resize", onResize);
       offData();
@@ -51,7 +81,10 @@ export default function TerminalView() {
       term.dispose();
       if (sessionRef.current !== null) window.kiln.execClose(sessionRef.current);
     };
-  }, []);
+    // Re-created whenever a font/theme setting changes, so an open
+    // terminal picks the new look up without needing a full app restart.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.terminal.fontFamily, settings.terminal.fontSize, settings.terminal.colorTheme, settings.appearance.theme]);
 
   async function connect(containerId: string) {
     setSelected(containerId);
@@ -64,7 +97,7 @@ export default function TerminalView() {
     term.reset();
     term.write(`Connecting to ${containerId.slice(0, 12)}...\r\n`);
     try {
-      const sessionId = await window.kiln.execStart(containerId);
+      const sessionId = await window.kiln.execStart(containerId, settings.terminal.defaultShell);
       sessionRef.current = sessionId;
       term.write("Connected. Type away.\r\n\r\n");
     } catch (e) {

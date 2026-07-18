@@ -5,6 +5,7 @@ import { formatBytes } from "../format";
 import ProjectDetailView from "./ProjectDetailView";
 import ConfirmDialog from "./ConfirmDialog";
 import NewContainerModal from "./NewContainerModal";
+import { useSettings } from "../settings/SettingsContext";
 import type { ContainerInfo, Stats } from "../types";
 
 async function fetchContainers() {
@@ -16,7 +17,9 @@ async function fetchContainers() {
 }
 
 export default function ContainersView() {
-  const { data: containers, error } = usePolling(fetchContainers, 2000);
+  const { settings } = useSettings();
+  const interval = settings.behavior.pollingIntervalMs;
+  const { data: containers, error } = usePolling(fetchContainers, interval);
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [openProject, setOpenProject] = useState<string | null>(null);
@@ -42,9 +45,28 @@ export default function ContainersView() {
       setStatsMap(map);
       return map;
     },
-    2000,
-    [runningIds],
+    interval,
+    [runningIds, interval],
   );
+
+  // Settings > Comportement's "confirm destructive actions" toggle, plus
+  // its "stop confirming stops" sub-option (only meaningful when the
+  // parent toggle is on - a stop is never confirmed with it off either
+  // way).
+  function confirmStop(message: string, action: () => void) {
+    if (!settings.behavior.confirmDestructive || settings.behavior.confirmOnlyForRemovals) {
+      action();
+      return;
+    }
+    setConfirm({ message, action });
+  }
+  function confirmRemove(message: string, action: () => void) {
+    if (!settings.behavior.confirmDestructive) {
+      action();
+      return;
+    }
+    setConfirm({ message, action });
+  }
 
   async function stop(id: string) {
     setBusy(id);
@@ -145,14 +167,22 @@ export default function ContainersView() {
                             Start
                           </button>
                         )}
-                        {running.length > 0 && <button onClick={() => running.forEach((c) => stop(c.id))}>Stop</button>}
+                        {running.length > 0 && (
+                          <button
+                            onClick={() =>
+                              confirmStop(`Stop all in "${g.project}"?`, () => running.forEach((c) => stop(c.id)))
+                            }
+                          >
+                            Stop
+                          </button>
+                        )}
                         <button
                           className="danger"
                           onClick={() =>
-                            setConfirm({
-                              message: `Remove all ${g.containers.length} service${g.containers.length === 1 ? "" : "s"} in "${g.project}"?`,
-                              action: () => g.containers.forEach((c) => remove(c.id)),
-                            })
+                            confirmRemove(
+                              `Remove all ${g.containers.length} service${g.containers.length === 1 ? "" : "s"} in "${g.project}"?`,
+                              () => g.containers.forEach((c) => remove(c.id)),
+                            )
                           }
                         >
                           Remove
@@ -189,10 +219,10 @@ export default function ContainersView() {
                     ) : (
                       <>
                         {!running && <button onClick={() => start(c.id)}>Start</button>}
-                        {running && <button onClick={() => stop(c.id)}>Stop</button>}
+                        {running && <button onClick={() => confirmStop(`Stop "${c.name}"?`, () => stop(c.id))}>Stop</button>}
                         <button
                           className="danger"
-                          onClick={() => setConfirm({ message: `Remove "${c.name}"?`, action: () => remove(c.id) })}
+                          onClick={() => confirmRemove(`Remove "${c.name}"?`, () => remove(c.id))}
                         >
                           Remove
                         </button>

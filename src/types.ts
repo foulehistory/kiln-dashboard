@@ -8,6 +8,8 @@ export interface ContainerInfo {
   ip: string | null;
   network: string | null;
   created_at: number;
+  memory_limit_bytes: number | null;
+  cpu_limit: number | null;
 }
 
 export interface ImageInfo {
@@ -48,6 +50,8 @@ export interface ApiResult<T> {
   body: T;
 }
 
+export type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
+
 export interface RunSpec {
   image: string;
   command?: string[];
@@ -67,6 +71,62 @@ export interface UpdateStatus {
   available: boolean;
   downloadUrl?: string | null;
   error?: string;
+}
+
+export interface AppSettings {
+  appearance: {
+    theme: "light" | "dark" | "auto";
+    density: "compact" | "comfortable";
+    language: "fr" | "en";
+    fontScale: number;
+  };
+  behavior: {
+    homeView: "containers" | "images" | "summary";
+    confirmDestructive: boolean;
+    confirmOnlyForRemovals: boolean;
+    pollingIntervalMs: number;
+    closeBehavior: "quit" | "tray";
+    launchAtStartup: boolean;
+  };
+  notifications: {
+    channel: "in-app" | "native" | "both";
+    events: {
+      containerStopped: boolean;
+      buildFinished: boolean;
+      pullFinished: boolean;
+      resourceAlert: boolean;
+      updateAvailable: boolean;
+    };
+    resourceAlertThresholdPct: number;
+    sound: boolean;
+    doNotDisturb: boolean;
+    doNotDisturbStart: string;
+    doNotDisturbEnd: string;
+  };
+  logs: {
+    maxLines: number;
+    timestampFormat: "relative" | "absolute";
+    wrapLines: boolean;
+  };
+  terminal: {
+    fontFamily: string;
+    fontSize: number;
+    colorTheme: "match-app" | "dark" | "light";
+    defaultShell: "auto" | "/bin/sh" | "/bin/bash";
+  };
+  connection: {
+    mode: "local" | "remote";
+    remoteHost: string;
+    remotePort: number;
+    reconnectIntervalMs: number;
+  };
+  updates: {
+    autoCheck: boolean;
+    channel: "stable" | "beta";
+  };
+  data: {
+    telemetry: boolean;
+  };
 }
 
 export type SetupState = "needs-features" | "needs-distro" | "needs-kiln" | "needs-base-image" | "ready";
@@ -92,6 +152,15 @@ export interface KilnApi {
   volumes(): Promise<ApiResult<VolumeInfo[]>>;
   createVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   removeVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
+
+  getSettings(): Promise<AppSettings>;
+  setSettings(patch: DeepPartial<AppSettings>): Promise<AppSettings>;
+  resetSettings(): Promise<AppSettings>;
+  openSettingsFolder(): Promise<void>;
+  testConnection(host: string, port: number): Promise<ApiResult<unknown>>;
+  getAppVersion(): Promise<string>;
+  notify(title: string, body: string, silent?: boolean): Promise<void>;
+  exportText(defaultName: string, content: string): Promise<{ ok: boolean; filePath?: string }>;
   stats(id: string): Promise<ApiResult<Stats>>;
   logs(id: string): Promise<ApiResult<string>>;
   stop(id: string): Promise<ApiResult<null>>;
@@ -99,7 +168,7 @@ export interface KilnApi {
   remove(id: string): Promise<ApiResult<null>>;
   run(spec: RunSpec): Promise<ApiResult<ContainerInfo>>;
 
-  execStart(containerId: string): Promise<number>;
+  execStart(containerId: string, shell?: string): Promise<number>;
   execWrite(sessionId: number, data: string): void;
   execClose(sessionId: number): void;
   onExecData(cb: (payload: { sessionId: number; data: string }) => void): () => void;

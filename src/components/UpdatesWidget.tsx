@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import type { UpdateStatus } from "../types";
+import { useSettings } from "../settings/SettingsContext";
+import { notify } from "../notifications/notify";
 
 type DashboardPhase = "idle" | "downloading" | "downloaded" | "installing";
 
 export default function UpdatesWidget() {
+  const { settings } = useSettings();
   const [checked, setChecked] = useState(false);
   const [checking, setChecking] = useState(false);
   const [dashboard, setDashboard] = useState<UpdateStatus | null>(null);
@@ -26,11 +29,12 @@ export default function UpdatesWidget() {
   }, []);
 
   // Silent check on launch, so an available update shows up on its own
-  // instead of staying hidden behind a button nobody thinks to click.
+  // instead of staying hidden behind a button nobody thinks to click -
+  // unless Settings > Mise à jour's "vérification automatique" is off.
   useEffect(() => {
-    check();
+    if (settings.updates.autoCheck) check();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [settings.updates.autoCheck]);
 
   async function check() {
     setChecking(true);
@@ -39,6 +43,8 @@ export default function UpdatesWidget() {
     setKilnd(k);
     setChecked(true);
     setChecking(false);
+    if (d.available) notify(settings, "updateAvailable", "Dashboard update available", d.latestVersion ?? "");
+    if (k.available) notify(settings, "updateAvailable", "kilnd update available", k.latestVersion ?? "");
   }
 
   async function downloadDashboard() {

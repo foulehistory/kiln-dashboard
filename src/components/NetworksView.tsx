@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { usePolling } from "../usePolling";
 import ConfirmDialog from "./ConfirmDialog";
+import { useSettings } from "../settings/SettingsContext";
 
 async function fetchNetworks() {
   const r = await window.kiln.networks();
@@ -16,7 +17,8 @@ function extractError(body: unknown, status: number): string {
 }
 
 export default function NetworksView() {
-  const { data: networks, error } = usePolling(fetchNetworks, 3000);
+  const { settings } = useSettings();
+  const { data: networks, error } = usePolling(fetchNetworks, settings.behavior.pollingIntervalMs);
   const [newName, setNewName] = useState("");
   const [newSubnet, setNewSubnet] = useState("");
   const [creating, setCreating] = useState(false);
@@ -94,7 +96,7 @@ export default function NetworksView() {
                   className="danger"
                   disabled={net.containers.length > 0}
                   title={net.containers.length > 0 ? "Remove attached containers first" : undefined}
-                  onClick={() => setConfirm(net.name)}
+                  onClick={() => (settings.behavior.confirmDestructive ? setConfirm(net.name) : remove(net.name))}
                 >
                   Remove
                 </button>

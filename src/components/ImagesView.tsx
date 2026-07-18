@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { usePolling } from "../usePolling";
 import ConfirmDialog from "./ConfirmDialog";
+import { useSettings } from "../settings/SettingsContext";
+import { notify } from "../notifications/notify";
 import type { ImageInfo } from "../types";
 
 async function fetchImages() {
@@ -12,7 +14,8 @@ async function fetchImages() {
 }
 
 export default function ImagesView() {
-  const { data: images, error } = usePolling(fetchImages, 3000);
+  const { settings } = useSettings();
+  const { data: images, error } = usePolling(fetchImages, settings.behavior.pollingIntervalMs);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ImageInfo | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
@@ -35,12 +38,16 @@ export default function ImagesView() {
     if (!pullRef.trim()) return;
     setPulling(true);
     setPullError(null);
-    const r = await window.kiln.pullImage(pullRef.trim());
+    const ref = pullRef.trim();
+    const r = await window.kiln.pullImage(ref);
     setPulling(false);
     if (r.status !== 201) {
-      setPullError(typeof r.body === "string" && r.body ? r.body : `failed (status ${r.status})`);
+      const msg = typeof r.body === "string" && r.body ? r.body : `failed (status ${r.status})`;
+      setPullError(msg);
+      notify(settings, "pullFinished", "Pull failed", `${ref}: ${msg}`);
       return;
     }
+    notify(settings, "pullFinished", "Pull finished", ref);
     setPullRef("");
   }
 
@@ -99,7 +106,10 @@ export default function ImagesView() {
                       working…
                     </span>
                   ) : (
-                    <button className="danger" onClick={() => setConfirm(img)}>
+                    <button
+                      className="danger"
+                      onClick={() => (settings.behavior.confirmDestructive ? setConfirm(img) : remove(img))}
+                    >
                       Remove
                     </button>
                   )}

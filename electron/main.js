@@ -5,7 +5,7 @@
 // (contextIsolation + no nodeIntegration in the renderer).
 "use strict";
 
-const { app, BrowserWindow, ipcMain, Menu } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, Tray, Notification, nativeImage, shell, dialog } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { execFile, spawn } = require("child_process");
 const https = require("https");
@@ -13,6 +13,7 @@ const http = require("http");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+const settingsStore = require("./settings");
 
 // kilnd's own repo (separate from this dashboard's repo - see the two
 // "Kiln" repos this project is split across). Used purely to look up the
@@ -74,6 +75,10 @@ function writeConfig(patch) {
 //   (a Windows process cannot open a socket living in a different
 //   kernel's filesystem). Set `KILN_SOCKET` to opt into this if you'd
 //   rather not expose even a loopback-only port.
+// The env vars remain the highest-priority dev escape hatch (unchanged
+// behavior for this project's own dev workflow); Settings > Connexion's
+// "remote" mode is the user-facing equivalent for pointing at a kilnd on
+// another machine, checked only once none of the env vars apply.
 function connectOptions() {
   if (process.env.KILN_SOCKET) {
     return { socketPath: process.env.KILN_SOCKET };
@@ -81,15 +86,23 @@ function connectOptions() {
   if (process.env.KILN_STORE) {
     return { socketPath: path.join(process.env.KILN_STORE, "kilnd.sock") };
   }
+  const { connection } = settingsStore.readSettings();
+  if (connection.mode === "remote" && connection.remoteHost) {
+    return { host: connection.remoteHost, port: Number(connection.remotePort) || 7867 };
+  }
   return { host: "127.0.0.1", port: Number(process.env.KILN_TCP_PORT) || 7867 };
 }
 
-/** One-shot request/response call to kilnd. */
-function apiRequest(method, urlPath, body) {
+/** One-shot request/response call to kilnd at an explicit `connOpts`
+ * (host/port or socketPath) - the primitive both `apiRequest` (against
+ * whatever `connectOptions()` currently resolves to) and the Settings
+ * page's "Tester la connexion" button (against a candidate host/port the
+ * user hasn't saved yet) are built on. */
+function apiRequestTo(connOpts, method, urlPath, body) {
   return new Promise((resolve) => {
     const data = body !== undefined ? JSON.stringify(body) : undefined;
     const headers = data ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) } : {};
-    const req = http.request({ ...connectOptions(), path: urlPath, method, headers }, (res) => {
+    const req = http.request({ ...connOpts, path: urlPath, method, headers, timeout: 4000 }, (res) => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => {
@@ -103,10 +116,15 @@ function apiRequest(method, urlPath, body) {
         resolve({ status: res.statusCode, body: parsed });
       });
     });
+    req.on("timeout", () => req.destroy(new Error("timed out")));
     req.on("error", (e) => resolve({ status: 0, body: { error: String(e) } }));
     if (data) req.write(data);
     req.end();
   });
+}
+
+function apiRequest(method, urlPath, body) {
+  return apiRequestTo(connectOptions(), method, urlPath, body);
 }
 
 // Launched lazily on startup if kilnd isn't already reachable - it's an
@@ -160,6 +178,58 @@ async function ensureKilndRunning() {
 }
 
 let mainWindow;
+// Set once the user actually chooses "Quitter" from the tray menu (or the
+// OS is shutting the app down) - lets the window's own "close" handler
+// tell a real quit apart from a click on the titlebar's X, which should
+// just hide the window when Settings > Comportement's close behavior is
+// "tray" (see `applySettingsSideEffects` below).
+let isQuitting = false;
+app.on("before-quit", () => {
+  isQuitting = true;
+});
+
+let tray = null;
+function ensureTray() {
+  if (tray) return;
+  const icon = nativeImage.createFromPath(path.join(__dirname, "..", "build", "icon.ico"));
+  tray = new Tray(icon.resize({ width: 16, height: 16 }));
+  tray.setToolTip("Kiln Dashboard");
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Ouvrir Kiln Dashboard", click: () => mainWindow?.show() },
+      { type: "separator" },
+      {
+        label: "Quitter",
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+  tray.on("click", () => mainWindow?.show());
+}
+function destroyTray() {
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
+}
+
+/** Applies the handful of settings that are main-process/OS concerns
+ * rather than something the renderer can just re-render for (unlike
+ * theme/density, which the renderer applies directly) - called once at
+ * startup and again every time `settings:set`/`settings:reset` persists a
+ * change. */
+function applySettingsSideEffects(settings) {
+  app.setLoginItemSettings({ openAtLogin: settings.behavior.launchAtStartup });
+  if (settings.behavior.closeBehavior === "tray") {
+    ensureTray();
+  } else {
+    destroyTray();
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -179,6 +249,12 @@ function createWindow() {
   mainWindow.webContents.on("did-fail-load", (_e, code, description) => {
     console.log(`[did-fail-load] ${code} ${description}`);
   });
+  mainWindow.on("close", (e) => {
+    if (!isQuitting && settingsStore.readSettings().behavior.closeBehavior === "tray") {
+      e.preventDefault();
+      mainWindow.hide();
+    }
+  });
 }
 
 // No File/Edit/View/... menu bar - this is a single-window utility app,
@@ -193,6 +269,7 @@ Menu.setApplicationMenu(null);
 // (see `kiln:setup-advance` above); the renderer drives that by calling
 // `kiln:setup-detect`/`kiln:setup-advance` on mount.
 app.whenReady().then(() => {
+  applySettingsSideEffects(settingsStore.readSettings());
   createWindow();
 });
 app.on("window-all-closed", () => {
@@ -200,6 +277,7 @@ app.on("window-all-closed", () => {
 });
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  mainWindow?.show();
 });
 
 ipcMain.handle("kiln:containers", () => apiRequest("GET", "/containers"));
@@ -217,6 +295,51 @@ ipcMain.handle("kiln:remove-network", (_e, name) => apiRequest("DELETE", `/netwo
 ipcMain.handle("kiln:volumes", () => apiRequest("GET", "/volumes"));
 ipcMain.handle("kiln:create-volume", (_e, name) => apiRequest("POST", "/volumes", { name }));
 ipcMain.handle("kiln:remove-volume", (_e, name) => apiRequest("DELETE", `/volumes/${encodeURIComponent(name)}`));
+
+// --- app settings --------------------------------------------------------
+
+ipcMain.handle("settings:get", () => settingsStore.readSettings());
+ipcMain.handle("settings:set", (_e, patch) => {
+  const next = settingsStore.writeSettings(patch);
+  applySettingsSideEffects(next);
+  return next;
+});
+ipcMain.handle("settings:reset", () => {
+  const next = settingsStore.resetSettings();
+  applySettingsSideEffects(next);
+  return next;
+});
+ipcMain.handle("settings:open-folder", () => shell.showItemInFolder(settingsStore.settingsPath()));
+// Tests a *candidate* host/port directly, deliberately not going through
+// `connectOptions()`/the persisted settings - the whole point is to let
+// the user check reachability before committing to it as their new
+// connection mode.
+ipcMain.handle("settings:test-connection", (_e, { host, port }) => apiRequestTo({ host, port: Number(port) || 7867 }, "GET", "/version"));
+ipcMain.handle("app:get-version", () => app.getVersion());
+
+// A pure OS-notification primitive - all policy (which event types are
+// enabled, in-app vs native channel, do-not-disturb) is decided in the
+// renderer, which already holds the full settings object; this handler
+// just shows what it's told to show.
+ipcMain.handle("notify", (_e, { title, body, silent }) => {
+  if (!Notification.isSupported()) return;
+  new Notification({ title, body, silent: Boolean(silent) }).show();
+});
+
+// "Export logs" (Settings > Logs mentions it, but it's really an action
+// on whichever log session is currently displayed - see
+// ProjectDetailView's log panel, the only place with actual log content
+// to export) - a native Save dialog + a plain file write, no renderer
+// filesystem access needed.
+ipcMain.handle("export-text", async (_e, { defaultName, content }) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: defaultName,
+    filters: [{ name: "Log files", extensions: ["log", "txt"] }],
+  });
+  if (canceled || !filePath) return { ok: false };
+  fs.writeFileSync(filePath, content);
+  return { ok: true, filePath };
+});
 ipcMain.handle("kiln:stats", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/stats`));
 ipcMain.handle("kiln:logs", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/logs`));
 ipcMain.handle("kiln:stop", (_e, id) => apiRequest("POST", `/containers/${encodeURIComponent(id)}/stop`));
@@ -232,11 +355,12 @@ ipcMain.handle("kiln:run", (_e, spec) => apiRequest("POST", "/containers", spec)
 const execSessions = new Map();
 let nextSessionId = 1;
 
-ipcMain.handle("kiln:exec-start", (event, containerId) => {
+ipcMain.handle("kiln:exec-start", (event, containerId, shell) => {
   return new Promise((resolve, reject) => {
+    const query = shell && shell !== "auto" ? `?shell=${encodeURIComponent(shell)}` : "";
     const req = http.request({
       ...connectOptions(),
-      path: `/containers/${encodeURIComponent(containerId)}/exec`,
+      path: `/containers/${encodeURIComponent(containerId)}/exec${query}`,
       method: "GET",
       headers: { Upgrade: "kiln-exec", Connection: "Upgrade" },
     });
@@ -351,11 +475,28 @@ function runInWsl(script, distro = getWslDistro()) {
   });
 }
 
+// `/releases/latest` (GitHub's own endpoint) skips prereleases by design,
+// which is exactly what "stable" should mean here. "beta" instead reads
+// the plain `/releases` list (newest first) and takes the first
+// non-draft entry, prerelease or not - a real distinction, not a
+// cosmetic one, though it only affects kilnd's own update check; the
+// dashboard's self-update still always goes through electron-updater's
+// single default feed regardless of this setting.
+async function latestKilnRelease(channel) {
+  if (channel === "beta") {
+    const releases = await githubJsonCached(`/repos/${KILND_REPO}/releases`);
+    const candidate = Array.isArray(releases) ? releases.find((r) => !r.draft) : null;
+    if (!candidate) throw new Error(`${KILND_REPO} has no releases`);
+    return candidate;
+  }
+  return githubJsonCached(`/repos/${KILND_REPO}/releases/latest`);
+}
+
 ipcMain.handle("kiln:check-kilnd-update", async () => {
   const current = await apiRequest("GET", "/version");
   const currentVersion = current.status === 200 && current.body?.version ? current.body.version : null;
 
-  const release = await githubJsonCached(`/repos/${KILND_REPO}/releases/latest`);
+  const release = await latestKilnRelease(settingsStore.readSettings().updates.channel);
   const latestVersion = String(release.tag_name || "").replace(/^v/, "");
   const asset = (release.assets || []).find((a) => a.name === "kiln-linux-x86_64.tar.gz");
 
@@ -385,7 +526,7 @@ chmod +x "$STORE/bin/kiln" "$STORE/bin/kiln-compose" "$STORE/bin/kilnd"
 }
 
 async function latestKilnReleaseDownloadUrl() {
-  const release = await githubJsonCached(`/repos/${KILND_REPO}/releases/latest`);
+  const release = await latestKilnRelease(settingsStore.readSettings().updates.channel);
   const asset = (release.assets || []).find((a) => a.name === "kiln-linux-x86_64.tar.gz");
   if (!asset) throw new Error(`latest ${KILND_REPO} release has no kiln-linux-x86_64.tar.gz asset`);
   return asset.browser_download_url;
