@@ -1,7 +1,19 @@
+import { useState } from "react";
 import { formatBytes } from "../format";
 import type { VolumeInfo } from "../types";
 
 export default function VolumeDetailModal({ volume, onClose }: { volume: VolumeInfo; onClose: () => void }) {
+  const [opening, setOpening] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
+
+  async function openInExplorer() {
+    setOpening(true);
+    setOpenError(null);
+    const r = await window.kiln.openVolumeFolder(volume.host_path);
+    setOpening(false);
+    if (!r.ok) setOpenError(r.error ?? "failed to open");
+  }
+
   return (
     <div className="confirm-overlay" onClick={onClose}>
       <div className="confirm-box" onClick={(e) => e.stopPropagation()}>
@@ -24,10 +36,18 @@ export default function VolumeDetailModal({ volume, onClose }: { volume: VolumeI
           </div>
         </div>
 
+        {openError && <div className="updates-error" style={{ marginBottom: 10 }}>{openError}</div>}
         <div className="confirm-actions">
           <button onClick={onClose}>Close</button>
-          <button className="primary" onClick={() => window.kiln.openVolumeFolder(volume.host_path)}>
-            Open in Explorer
+          <button className="primary" onClick={openInExplorer} disabled={opening}>
+            {opening ? (
+              <>
+                <span className="spinner" />
+                Opening…
+              </>
+            ) : (
+              "Open in Explorer"
+            )}
           </button>
         </div>
       </div>

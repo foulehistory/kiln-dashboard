@@ -154,7 +154,7 @@ export interface KilnApi {
   volumes(): Promise<ApiResult<VolumeInfo[]>>;
   createVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   removeVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
-  openVolumeFolder(hostPath: string): Promise<void>;
+  openVolumeFolder(hostPath: string): Promise<{ ok: boolean; error?: string }>;
 
   getSettings(): Promise<AppSettings>;
   setSettings(patch: DeepPartial<AppSettings>): Promise<AppSettings>;

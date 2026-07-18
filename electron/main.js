@@ -298,14 +298,56 @@ ipcMain.handle("kiln:remove-volume", (_e, name) => apiRequest("DELETE", `/volume
 
 // kilnd's `host_path` is a path inside WSL2's own filesystem (kilnd has
 // no notion of "the Windows side" at all) - WSL2 exposes its filesystem
-// to Windows over a `\\wsl.localhost\<distro>\...` UNC share (9P under
-// the hood), which Explorer already understands natively, so opening a
-// volume's folder is just a path translation + `shell.openPath`, no WSL
-// process spawn needed.
-ipcMain.handle("kiln:open-volume-folder", (_e, hostPath) => {
-  const uncPath = `\\\\wsl.localhost\\${getWslDistro()}${hostPath.replace(/\//g, "\\")}`;
-  return shell.openPath(uncPath);
-});
+// to Windows over a UNC share (9P under the hood), which Explorer
+// already understands natively once it resolves. Two prefixes exist:
+// `\\wsl.localhost\<distro>\...` (current, Windows 10 21H2+/11) and the
+// older `\\wsl$\<distro>\...` (present since WSL2 shipped, still works
+// everywhere `wsl.localhost` does and some places it doesn't).
+//
+// `shell.openPath()` alone can't tell us whether this actually worked:
+// it just hands the path to Explorer and reports success as soon as
+// that launch succeeds, regardless of whether Explorer can subsequently
+// resolve the share - a broken/unmounted distro share surfaces as
+// Explorer's own native "Windows can't access..." dialog, not anything
+// this process sees.
+//
+// Checking first with Node's own `fs` module doesn't work here - tested
+// directly: `fs.promises.stat()`/`access()` reliably return ENOENT for
+// `\\wsl.localhost\...`/`\\wsl$\...` paths even when the share is
+// genuinely fine and Explorer/PowerShell's `Test-Path` resolve it
+// without issue. This is a known libuv/Node limitation with WSL's
+// 9P-backed redirector, not something specific to this path. Shelling
+// out to PowerShell's `Test-Path` (confirmed reliable against a real
+// volume, a nonexistent distro, and a nonexistent path) is slower but
+// actually correct.
+function pathExistsViaPowerShell(uncPath) {
+  return new Promise((resolve) => {
+    execFile(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", `Test-Path -LiteralPath '${uncPath.replace(/'/g, "''")}'`],
+      { timeout: 5000 },
+      (err, stdout) => resolve(!err && stdout.trim() === "True"),
+    );
+  });
+}
+
+async function openWslPathInExplorer(hostPath) {
+  const distro = getWslDistro();
+  const winStyle = hostPath.replace(/\//g, "\\");
+  const candidates = [`\\\\wsl.localhost\\${distro}${winStyle}`, `\\\\wsl$\\${distro}${winStyle}`];
+  for (const candidate of candidates) {
+    if (await pathExistsViaPowerShell(candidate)) {
+      const err = await shell.openPath(candidate);
+      if (!err) return { ok: true };
+    }
+  }
+  return {
+    ok: false,
+    error: `Could not reach the "${distro}" WSL distro's file share (tried \\\\wsl.localhost\\${distro} and \\\\wsl$\\${distro}). Try running "wsl --shutdown" in a terminal, then reopen the dashboard.`,
+  };
+}
+
+ipcMain.handle("kiln:open-volume-folder", (_e, hostPath) => openWslPathInExplorer(hostPath));
 
 // --- app settings --------------------------------------------------------
 
