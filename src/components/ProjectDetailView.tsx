@@ -4,6 +4,7 @@ import { serviceName } from "../projects";
 import { formatBytes } from "../format";
 import ConfirmDialog from "./ConfirmDialog";
 import Sparkline from "./Sparkline";
+import { PlayIcon, StopIcon, TrashIcon } from "./icons";
 import { useSettings } from "../settings/SettingsContext";
 import type { ContainerInfo, Stats } from "../types";
 
@@ -226,32 +227,37 @@ export default function ProjectDetailView({
                     <>
                       {!running && (
                         <button
+                          className="icon-btn"
+                          title="Start"
                           onClick={(e) => {
                             e.stopPropagation();
                             start(c.id);
                           }}
                         >
-                          Start
+                          <PlayIcon />
                         </button>
                       )}
                       {running && (
                         <button
+                          className="icon-btn"
+                          title="Stop"
                           onClick={(e) => {
                             e.stopPropagation();
                             confirmStop(`Stop "${serviceName(c, project)}"?`, () => stop(c.id));
                           }}
                         >
-                          Stop
+                          <StopIcon />
                         </button>
                       )}
                       <button
-                        className="danger"
+                        className="icon-btn danger"
+                        title="Remove"
                         onClick={(e) => {
                           e.stopPropagation();
                           confirmRemove(`Remove "${serviceName(c, project)}"?`, () => remove(c.id));
                         }}
                       >
-                        Remove
+                        <TrashIcon />
                       </button>
                     </>
                   )}

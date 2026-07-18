@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useSettings } from "../../settings/SettingsContext";
 import { useT } from "../../i18n/useT";
 import { SettingRow, Toggle } from "./controls";
@@ -6,6 +7,18 @@ export default function AppearanceSection() {
   const { settings, update } = useSettings();
   const t = useT();
   const a = settings.appearance;
+
+  // The slider's own visual position is local state, decoupled from the
+  // committed setting - committing on every drag tick (via the zoom
+  // effect it drives) makes the whole page rescale mid-drag, which
+  // shifts the slider itself under the cursor and fights the drag. Only
+  // `update()` on release, so dragging stays smooth and only the final
+  // value ever triggers a zoom change.
+  const [liveScale, setLiveScale] = useState(a.fontScale);
+  useEffect(() => setLiveScale(a.fontScale), [a.fontScale]);
+  function commitScale(e: React.SyntheticEvent<HTMLInputElement>) {
+    update({ appearance: { fontScale: Number(e.currentTarget.value) } });
+  }
 
   return (
     <div>
@@ -37,10 +50,13 @@ export default function AppearanceSection() {
           min={0.85}
           max={1.3}
           step={0.05}
-          value={a.fontScale}
-          onChange={(e) => update({ appearance: { fontScale: Number(e.target.value) } })}
+          value={liveScale}
+          onChange={(e) => setLiveScale(Number(e.target.value))}
+          onMouseUp={commitScale}
+          onTouchEnd={commitScale}
+          onKeyUp={commitScale}
         />
-        <span className="mono muted">{Math.round(a.fontScale * 100)}%</span>
+        <span className="mono muted">{Math.round(liveScale * 100)}%</span>
       </SettingRow>
     </div>
   );

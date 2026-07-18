@@ -7,6 +7,8 @@ import TerminalView from "./components/TerminalView";
 import SettingsView from "./components/SettingsView";
 import UpdatesWidget from "./components/UpdatesWidget";
 import SetupWizard from "./components/SetupWizard";
+import NotificationBell from "./components/NotificationBell";
+import { CloseIcon } from "./components/icons";
 import { SettingsProvider, useSettings } from "./settings/SettingsContext";
 import { useT } from "./i18n/useT";
 import { usePolling } from "./usePolling";
@@ -28,7 +30,11 @@ interface Toast {
   id: number;
   title: string;
   body: string;
+  leaving?: boolean;
 }
+
+const TOAST_LIFETIME_MS = 6000;
+const TOAST_EXIT_MS = 200;
 
 function AppShell() {
   const { settings, loaded } = useSettings();
@@ -72,11 +78,19 @@ function AppShell() {
     window.kiln.setupDetect().then((r) => setSetupReady(r.state === "ready"));
   }, []);
 
+  function dismissToast(id: number) {
+    // Two-step removal so the exit animation (CSS, keyed off `.leaving`)
+    // has time to play before the element actually leaves the DOM -
+    // removing it immediately would just cut the fade/slide short.
+    setToasts((prev) => prev.map((x) => (x.id === id ? { ...x, leaving: true } : x)));
+    setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), TOAST_EXIT_MS);
+  }
+
   useEffect(() => {
     return subscribeToasts((title, body) => {
       const id = Date.now() + Math.random();
       setToasts((prev) => [...prev, { id, title, body }]);
-      setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 6000);
+      setTimeout(() => dismissToast(id), TOAST_LIFETIME_MS);
     });
   }, []);
 
@@ -138,6 +152,7 @@ function AppShell() {
         <NavItem label="Terminal" active={tab === "terminal"} onClick={() => setTab("terminal")} />
         <NavItem label={t("nav.settings")} active={tab === "settings"} onClick={() => setTab("settings")} />
         <div className="sidebar-spacer" />
+        <NotificationBell />
         <UpdatesWidget />
       </div>
       <div className="main">
@@ -150,7 +165,10 @@ function AppShell() {
       </div>
       <div className="toast-stack">
         {toasts.map((tt) => (
-          <div className="toast" key={tt.id}>
+          <div className={`toast${tt.leaving ? " leaving" : ""}`} key={tt.id}>
+            <button className="toast-close" title="Dismiss" onClick={() => dismissToast(tt.id)}>
+              <CloseIcon />
+            </button>
             <strong>{tt.title}</strong>
             <div className="muted">{tt.body}</div>
           </div>

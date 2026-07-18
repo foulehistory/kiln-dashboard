@@ -6,6 +6,7 @@ import ProjectDetailView from "./ProjectDetailView";
 import ConfirmDialog from "./ConfirmDialog";
 import NewContainerModal from "./NewContainerModal";
 import { useSettings } from "../settings/SettingsContext";
+import { PlayIcon, StopIcon, TrashIcon } from "./icons";
 import type { ContainerInfo, Stats } from "../types";
 
 async function fetchContainers() {
@@ -163,21 +164,28 @@ export default function ContainersView() {
                     ) : (
                       <>
                         {running.length < g.containers.length && (
-                          <button onClick={() => g.containers.filter((c) => c.status !== "running").forEach((c) => start(c.id))}>
-                            Start
+                          <button
+                            className="icon-btn"
+                            title="Start"
+                            onClick={() => g.containers.filter((c) => c.status !== "running").forEach((c) => start(c.id))}
+                          >
+                            <PlayIcon />
                           </button>
                         )}
                         {running.length > 0 && (
                           <button
+                            className="icon-btn"
+                            title="Stop"
                             onClick={() =>
                               confirmStop(`Stop all in "${g.project}"?`, () => running.forEach((c) => stop(c.id)))
                             }
                           >
-                            Stop
+                            <StopIcon />
                           </button>
                         )}
                         <button
-                          className="danger"
+                          className="icon-btn danger"
+                          title="Remove"
                           onClick={() =>
                             confirmRemove(
                               `Remove all ${g.containers.length} service${g.containers.length === 1 ? "" : "s"} in "${g.project}"?`,
@@ -185,7 +193,7 @@ export default function ContainersView() {
                             )
                           }
                         >
-                          Remove
+                          <TrashIcon />
                         </button>
                       </>
                     )}
@@ -218,13 +226,22 @@ export default function ContainersView() {
                       </span>
                     ) : (
                       <>
-                        {!running && <button onClick={() => start(c.id)}>Start</button>}
-                        {running && <button onClick={() => confirmStop(`Stop "${c.name}"?`, () => stop(c.id))}>Stop</button>}
+                        {!running && (
+                          <button className="icon-btn" title="Start" onClick={() => start(c.id)}>
+                            <PlayIcon />
+                          </button>
+                        )}
+                        {running && (
+                          <button className="icon-btn" title="Stop" onClick={() => confirmStop(`Stop "${c.name}"?`, () => stop(c.id))}>
+                            <StopIcon />
+                          </button>
+                        )}
                         <button
-                          className="danger"
+                          className="icon-btn danger"
+                          title="Remove"
                           onClick={() => confirmRemove(`Remove "${c.name}"?`, () => remove(c.id))}
                         >
-                          Remove
+                          <TrashIcon />
                         </button>
                       </>
                     )}

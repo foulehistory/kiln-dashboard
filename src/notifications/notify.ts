@@ -13,6 +13,44 @@ export function subscribeToasts(fn: ToastListener): () => void {
   return () => listeners.delete(fn);
 }
 
+export interface NotificationRecord {
+  id: number;
+  title: string;
+  body: string;
+  time: number;
+  read: boolean;
+}
+
+// A short in-memory (not persisted - session-only, cleared on restart,
+// same lifetime as the toasts themselves) log of everything `notify()`
+// let through, independent of which delivery channel(s) it actually went
+// to - this is what the sidebar's bell icon reads, so a notification
+// missed as a toast (window not focused, already dismissed, do-not-
+// disturb was on) is still there to check later.
+const HISTORY_LIMIT = 50;
+let history: NotificationRecord[] = [];
+const historyListeners = new Set<(history: NotificationRecord[]) => void>();
+
+function publishHistory() {
+  historyListeners.forEach((fn) => fn(history));
+}
+
+export function subscribeHistory(fn: (history: NotificationRecord[]) => void): () => void {
+  fn(history);
+  historyListeners.add(fn);
+  return () => historyListeners.delete(fn);
+}
+
+export function markAllNotificationsRead() {
+  history = history.map((r) => ({ ...r, read: true }));
+  publishHistory();
+}
+
+export function clearNotificationHistory() {
+  history = [];
+  publishHistory();
+}
+
 function isWithinDoNotDisturb(start: string, end: string): boolean {
   const now = new Date();
   const cur = now.getHours() * 60 + now.getMinutes();
@@ -31,6 +69,13 @@ export function notify(
 ) {
   const n = settings.notifications;
   if (!n.events[eventKey]) return;
+
+  history = [{ id: Date.now() + Math.random(), title, body, time: Date.now(), read: false }, ...history].slice(0, HISTORY_LIMIT);
+  publishHistory();
+
+  // Do-not-disturb only suppresses the immediate interruption (toast/OS
+  // notification) - it's still logged above, since the whole point of
+  // the bell is to surface exactly what you were shielded from.
   if (n.doNotDisturb && isWithinDoNotDisturb(n.doNotDisturbStart, n.doNotDisturbEnd)) return;
   if (n.channel === "in-app" || n.channel === "both") {
     listeners.forEach((fn) => fn(title, body));
