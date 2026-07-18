@@ -183,6 +183,13 @@ export interface AppSettings {
   };
 }
 
+export interface AddonHttpFetchResult {
+  status?: number;
+  headers?: Record<string, string>;
+  body?: string;
+  error?: string;
+}
+
 export interface AddonManifest {
   id: string;
   name: string;
@@ -231,6 +238,7 @@ export interface KilnApi {
   listAddons(): Promise<AddonManifest[]>;
   toggleAddon(id: string, enabled: boolean): Promise<{ ok: boolean }>;
   openAddonsFolder(): Promise<{ ok: boolean; error?: string }>;
+  addonHttpFetch(url: string, options?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<AddonHttpFetchResult>;
 
   getSettings(): Promise<AppSettings>;
   setSettings(patch: DeepPartial<AppSettings>): Promise<AppSettings>;

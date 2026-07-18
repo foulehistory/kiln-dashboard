@@ -1,0 +1,8 @@
+{
+  "id": "mysql-users-addon",
+  "name": "MySQL Users",
+  "icon": "🗄️",
+  "apiVersion": 1,
+  "entry": "index.html",
+  "permissions": ["http:http://localhost:8081"]
+}

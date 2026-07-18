@@ -370,6 +370,60 @@ ipcMain.handle("kiln:open-addons-folder", async () => {
   return err ? { ok: false, error: err } : { ok: true };
 });
 
+// A generic HTTP relay for addons that need to talk to their own backend
+// (e.g. a companion service published from a container) - the fetch
+// itself always runs here, in the main process, never inside the
+// addon's sandboxed iframe. AddonFrame.tsx checks the requested URL's
+// origin against the addon's own manifest.permissions (an
+// "http:<origin>" entry) before ever invoking this, so this handler
+// itself does no allowlisting of its own - by the time a request
+// reaches here, the permission check has already happened.
+ipcMain.handle("kiln:addon-http-fetch", (_e, { url, options }) => {
+  return new Promise((resolve) => {
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch (e) {
+      resolve({ error: `invalid URL: ${e.message}` });
+      return;
+    }
+    const lib = parsed.protocol === "https:" ? https : http;
+    // Content-Length must be set explicitly: without it, Node defaults a
+    // request with a body to chunked transfer encoding, which a simple
+    // server (e.g. Python's stdlib BaseHTTPRequestHandler, as used by
+    // the mysql-users-addon's companion API) never decodes - it just
+    // reads Content-Length bytes, sees the header missing, and treats
+    // the body as empty.
+    const bodyBuf = options && options.body ? Buffer.from(options.body) : null;
+    const headers = Object.assign({}, options && options.headers);
+    if (bodyBuf) headers["Content-Length"] = String(bodyBuf.length);
+    const req = lib.request(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
+        path: parsed.pathname + parsed.search,
+        method: (options && options.method) || "GET",
+        headers,
+        timeout: 10000,
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks).toString("utf8") });
+        });
+      },
+    );
+    req.on("error", (e) => resolve({ error: e.message }));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve({ error: "request timed out" });
+    });
+    if (bodyBuf) req.write(bodyBuf);
+    req.end();
+  });
+});
+
 app.whenReady().then(() => {
   applySettingsSideEffects(settingsStore.readSettings());
 

@@ -42,6 +42,30 @@ export default function AddonFrame({ addon }: { addon: AddonManifest }) {
       const reply = (payload: Record<string, unknown>) =>
         iframeRef.current?.contentWindow?.postMessage({ type: "kiln-addon-result", callId, ...payload }, "*");
 
+      // http.fetch's required permission is data-dependent (which origin
+      // the addon is asking to reach), unlike every other bridge method
+      // below - handled separately rather than forcing ADDON_METHOD_PERMISSIONS
+      // to represent a permission that isn't a fixed string.
+      if (method === "http.fetch") {
+        const [url, options] = (args || []) as [string, Record<string, unknown> | undefined];
+        let origin: string;
+        try {
+          origin = new URL(url).origin;
+        } catch {
+          reply({ ok: false, error: `invalid URL: ${url}` });
+          return;
+        }
+        const requiredPermission = `http:${origin}`;
+        if (!addon.permissions.includes(requiredPermission)) {
+          reply({ ok: false, error: `permission denied: "http.fetch" to ${origin} requires "${requiredPermission}", which this addon's manifest does not declare` });
+          return;
+        }
+        window.kiln
+          .addonHttpFetch(url, options as { method?: string; headers?: Record<string, string>; body?: string } | undefined)
+          .then((r) => (r.error ? reply({ ok: false, error: r.error }) : reply({ ok: true, data: r })));
+        return;
+      }
+
       const requiredPermission = ADDON_METHOD_PERMISSIONS[method];
       if (!requiredPermission) {
         reply({ ok: false, error: `unknown method: ${method}` });
