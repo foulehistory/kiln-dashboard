@@ -37,6 +37,8 @@ export interface NetworkInfo {
 export interface VolumeInfo {
   name: string;
   containers: string[];
+  size_bytes: number;
+  host_path: string;
 }
 
 export interface Stats {
@@ -152,6 +154,7 @@ export interface KilnApi {
   volumes(): Promise<ApiResult<VolumeInfo[]>>;
   createVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   removeVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
+  openVolumeFolder(hostPath: string): Promise<void>;
 
   getSettings(): Promise<AppSettings>;
   setSettings(patch: DeepPartial<AppSettings>): Promise<AppSettings>;

@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("kiln", {
   volumes: () => ipcRenderer.invoke("kiln:volumes"),
   createVolume: (name) => ipcRenderer.invoke("kiln:create-volume", name),
   removeVolume: (name) => ipcRenderer.invoke("kiln:remove-volume", name),
+  openVolumeFolder: (hostPath) => ipcRenderer.invoke("kiln:open-volume-folder", hostPath),
 
   getSettings: () => ipcRenderer.invoke("settings:get"),
   setSettings: (patch) => ipcRenderer.invoke("settings:set", patch),

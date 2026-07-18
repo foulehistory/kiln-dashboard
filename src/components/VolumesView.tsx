@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { usePolling } from "../usePolling";
 import ConfirmDialog from "./ConfirmDialog";
+import VolumeDetailModal from "./VolumeDetailModal";
+import { formatBytes } from "../format";
 import { useSettings } from "../settings/SettingsContext";
+import type { VolumeInfo } from "../types";
 
 async function fetchVolumes() {
   const r = await window.kiln.volumes();
@@ -24,6 +27,7 @@ export default function VolumesView() {
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<VolumeInfo | null>(null);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -77,18 +81,20 @@ export default function VolumesView() {
           <thead>
             <tr>
               <th>Name</th>
+              <th>Size</th>
               <th>Used by</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {volumes.map((v) => (
-              <tr key={v.name}>
+              <tr key={v.name} onClick={() => setDetail(v)} style={{ cursor: "pointer" }}>
                 <td className="mono">{v.name}</td>
+                <td className="muted">{formatBytes(v.size_bytes)}</td>
                 <td className="muted">
                   {v.containers.length === 0 ? "-" : v.containers.join(", ")}
                 </td>
-                <td>
+                <td onClick={(e) => e.stopPropagation()}>
                   {busy === v.name ? (
                     <span className="muted">
                       <span className="spinner" />
@@ -113,6 +119,7 @@ export default function VolumesView() {
       {confirm && (
         <ConfirmDialog message={`Remove volume "${confirm}"?`} onConfirm={() => remove(confirm)} onCancel={() => setConfirm(null)} />
       )}
+      {detail && <VolumeDetailModal volume={detail} onClose={() => setDetail(null)} />}
     </div>
   );
 }

@@ -296,6 +296,17 @@ ipcMain.handle("kiln:volumes", () => apiRequest("GET", "/volumes"));
 ipcMain.handle("kiln:create-volume", (_e, name) => apiRequest("POST", "/volumes", { name }));
 ipcMain.handle("kiln:remove-volume", (_e, name) => apiRequest("DELETE", `/volumes/${encodeURIComponent(name)}`));
 
+// kilnd's `host_path` is a path inside WSL2's own filesystem (kilnd has
+// no notion of "the Windows side" at all) - WSL2 exposes its filesystem
+// to Windows over a `\\wsl.localhost\<distro>\...` UNC share (9P under
+// the hood), which Explorer already understands natively, so opening a
+// volume's folder is just a path translation + `shell.openPath`, no WSL
+// process spawn needed.
+ipcMain.handle("kiln:open-volume-folder", (_e, hostPath) => {
+  const uncPath = `\\\\wsl.localhost\\${getWslDistro()}${hostPath.replace(/\//g, "\\")}`;
+  return shell.openPath(uncPath);
+});
+
 // --- app settings --------------------------------------------------------
 
 ipcMain.handle("settings:get", () => settingsStore.readSettings());
