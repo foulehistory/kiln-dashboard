@@ -1,6 +1,6 @@
 {
   "name": "kiln-dashboard",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "description": "Electron + React dashboard for Kiln: live containers, images, network topology, and an in-browser exec terminal.",
   "main": "electron/main.js",
@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-search": "^0.16.0",
     "@xterm/xterm": "^5.5.0",
     "electron-updater": "^6.3.4",
     "react": "^18.3.1",
@@ -31,8 +32,18 @@
   "build": {
     "appId": "dev.kiln.dashboard",
     "productName": "Kiln Dashboard",
-    "files": ["dist/**/*", "electron/**/*", "build/**/*", "package.json"],
-    "extraResources": [{ "from": "resources/setup-helper.ps1", "to": "setup-helper.ps1" }],
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "build/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/setup-helper.ps1",
+        "to": "setup-helper.ps1"
+      }
+    ],
     "directories": {
       "output": "dist-release"
     },

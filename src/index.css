@@ -455,12 +455,68 @@ select:hover {
 }
 
 .terminal-container {
-  height: calc(100vh - 140px);
+  height: calc(100vh - 176px);
   background: #05070a;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 8px;
   box-shadow: var(--shadow-md);
+}
+
+.terminal-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12.5px;
+  border: 1px solid transparent;
+}
+
+.terminal-tab:hover {
+  color: var(--text);
+  background: var(--panel-raised);
+}
+
+.terminal-tab.active {
+  color: var(--text);
+  background: var(--accent-soft);
+  border-color: rgba(91, 141, 255, 0.25);
+}
+
+.terminal-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.terminal-tab-close:hover {
+  color: var(--bad);
+  background: var(--bad-soft);
+}
+
+.terminal-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.terminal-search-bar input {
+  max-width: 240px;
 }
 
 .empty-state {
