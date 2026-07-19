@@ -7,6 +7,7 @@ import Sparkline from "./Sparkline";
 import EditLimitsModal from "./EditLimitsModal";
 import { PlayIcon, StopIcon, TrashIcon, RestartIcon, GaugeIcon } from "./icons";
 import { useSettings } from "../settings/SettingsContext";
+import { expectStop } from "../notifications/notify";
 import type { ContainerInfo, Stats } from "../types";
 
 /** How many stats samples to keep per container for the sparklines below -
@@ -130,6 +131,7 @@ export default function ProjectDetailView({
 
   async function stop(id: string) {
     setBusy(id);
+    expectStop(id);
     await window.kiln.stop(id);
     setBusy(null);
   }
@@ -142,12 +144,14 @@ export default function ProjectDetailView({
   // confirmed empty (see kiln-cli's stop_container), never mid-exit.
   async function restart(id: string) {
     setBusy(id);
+    expectStop(id);
     await window.kiln.stop(id);
     await window.kiln.startExisting(id);
     setBusy(null);
   }
   async function remove(id: string) {
     setBusy(id);
+    expectStop(id);
     await window.kiln.remove(id);
     setBusy(null);
   }
@@ -350,15 +354,15 @@ export default function ProjectDetailView({
                   </div>
                   <div className="stats-chart">
                     <div className="muted stats-chart-label">
-                      ↓ Download · {formatBytes(history[selected.id][history[selected.id].length - 1].rxRateBps)}/s
+                      <span style={{ color: "#4dabf7" }}>↓ {formatBytes(history[selected.id][history[selected.id].length - 1].rxRateBps)}/s</span>{" "}
+                      <span style={{ color: "#a56de2" }}>↑ {formatBytes(history[selected.id][history[selected.id].length - 1].txRateBps)}/s</span>
                     </div>
-                    <Sparkline data={history[selected.id].map((s) => s.rxRateBps)} color="#4dabf7" />
-                  </div>
-                  <div className="stats-chart">
-                    <div className="muted stats-chart-label">
-                      ↑ Upload · {formatBytes(history[selected.id][history[selected.id].length - 1].txRateBps)}/s
-                    </div>
-                    <Sparkline data={history[selected.id].map((s) => s.txRateBps)} color="#a56de2" />
+                    <Sparkline
+                      data={history[selected.id].map((s) => s.rxRateBps)}
+                      color="#4dabf7"
+                      data2={history[selected.id].map((s) => s.txRateBps)}
+                      color2="#a56de2"
+                    />
                   </div>
                 </div>
               )}

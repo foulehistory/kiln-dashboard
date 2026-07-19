@@ -13,6 +13,25 @@ export function subscribeToasts(fn: ToastListener): () => void {
   return () => listeners.delete(fn);
 }
 
+// Container ids whose next running -> non-running transition shouldn't
+// fire the "stopped unexpectedly" notification - App.tsx's background
+// watcher polls container status independently of whichever view issued
+// the stop, so without this it can't tell a deliberate Stop/Restart/
+// Remove click apart from a real crash. Every UI action that already
+// knows a stop is coming calls `expectStop(id)` right before telling
+// kilnd to stop it; the watcher calls `consumeExpectedStop(id)` instead
+// of notifying, which also *removes* the id - so a later genuine crash
+// of that same container still notifies normally.
+const expectedStops = new Set<string>();
+
+export function expectStop(id: string) {
+  expectedStops.add(id);
+}
+
+export function consumeExpectedStop(id: string): boolean {
+  return expectedStops.delete(id);
+}
+
 export interface NotificationRecord {
   id: number;
   title: string;

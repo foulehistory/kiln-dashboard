@@ -7,6 +7,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import NewContainerModal from "./NewContainerModal";
 import EditLimitsModal from "./EditLimitsModal";
 import { useSettings } from "../settings/SettingsContext";
+import { expectStop } from "../notifications/notify";
 import { PlayIcon, StopIcon, TrashIcon, RestartIcon, SearchIcon, GaugeIcon } from "./icons";
 import type { ContainerInfo, Stats } from "../types";
 
@@ -75,6 +76,7 @@ export default function ContainersView() {
 
   async function stop(id: string) {
     setBusy(id);
+    expectStop(id);
     await window.kiln.stop(id);
     setBusy(null);
   }
@@ -85,6 +87,7 @@ export default function ContainersView() {
   }
   async function remove(id: string) {
     setBusy(id);
+    expectStop(id);
     await window.kiln.remove(id);
     setBusy(null);
   }
@@ -94,6 +97,7 @@ export default function ContainersView() {
   // the old process might still be exiting.
   async function restart(id: string) {
     setBusy(id);
+    expectStop(id);
     await window.kiln.stop(id);
     await window.kiln.startExisting(id);
     setBusy(null);

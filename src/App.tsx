@@ -14,7 +14,7 @@ import { CloseIcon } from "./components/icons";
 import { SettingsProvider, useSettings } from "./settings/SettingsContext";
 import { useT } from "./i18n/useT";
 import { usePolling } from "./usePolling";
-import { notify, subscribeToasts } from "./notifications/notify";
+import { notify, subscribeToasts, consumeExpectedStop } from "./notifications/notify";
 import { resolveTheme } from "./theme";
 import type { AddonManifest, ContainerInfo } from "./types";
 
@@ -131,7 +131,7 @@ function AppShell() {
       const containers = r.body as ContainerInfo[];
       for (const c of containers) {
         const prev = prevStatuses.current[c.id];
-        if (prev === "running" && c.status !== "running") {
+        if (prev === "running" && c.status !== "running" && !consumeExpectedStop(c.id)) {
           notify(settings, "containerStopped", t("notifications.events.containerStopped"), c.name);
         }
         prevStatuses.current[c.id] = c.status;
