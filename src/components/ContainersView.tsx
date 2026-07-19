@@ -187,6 +187,7 @@ export default function ContainersView() {
               <th>Status</th>
               <th>CPU (ms)</th>
               <th>Memory</th>
+              <th>Network</th>
               <th>IP</th>
               <th>Command</th>
               <th></th>
@@ -197,6 +198,8 @@ export default function ContainersView() {
               const running = g.containers.filter((c) => c.status === "running");
               const totalCpu = g.containers.reduce((sum, c) => sum + (statsMap[c.id]?.cpu_usage_usec ?? 0), 0);
               const totalMem = g.containers.reduce((sum, c) => sum + (statsMap[c.id]?.memory_current_bytes ?? 0), 0);
+              const totalRx = g.containers.reduce((sum, c) => sum + (statsMap[c.id]?.rx_bytes ?? 0), 0);
+              const totalTx = g.containers.reduce((sum, c) => sum + (statsMap[c.id]?.tx_bytes ?? 0), 0);
               const anyBusy = g.containers.some((c) => busy === c.id);
               return (
                 <tr key={`group:${g.project}`} className="group-row" onClick={() => setOpenProject(g.project)}>
@@ -216,6 +219,7 @@ export default function ContainersView() {
                   </td>
                   <td>{totalCpu > 0 ? (totalCpu / 1000).toFixed(0) : "-"}</td>
                   <td>{totalMem > 0 ? formatBytes(totalMem) : "-"}</td>
+                  <td className="mono muted">{totalRx > 0 || totalTx > 0 ? `↓${formatBytes(totalRx)} ↑${formatBytes(totalTx)}` : "-"}</td>
                   <td className="mono muted">-</td>
                   <td className="mono muted">-</td>
                   <td onClick={(e) => e.stopPropagation()}>
@@ -287,6 +291,7 @@ export default function ContainersView() {
                   </td>
                   <td>{s ? (s.cpu_usage_usec / 1000).toFixed(0) : "-"}</td>
                   <td>{s ? formatBytes(s.memory_current_bytes) : "-"}</td>
+                  <td className="mono muted">{s && (s.rx_bytes || s.tx_bytes) ? `↓${formatBytes(s.rx_bytes ?? 0)} ↑${formatBytes(s.tx_bytes ?? 0)}` : "-"}</td>
                   <td className="mono">{c.ip ?? "-"}</td>
                   <td className="mono muted">{c.command.join(" ").slice(0, 40)}</td>
                   <td onClick={(e) => e.stopPropagation()}>

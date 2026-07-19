@@ -25,6 +25,7 @@ export default function VolumesView() {
   const { data: volumes, error } = usePolling(fetchVolumes, settings.behavior.pollingIntervalMs);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -40,6 +41,22 @@ export default function VolumesView() {
     setCreating(false);
     if (r.status !== 201) {
       setActionError(extractError(r.body, r.status));
+      return;
+    }
+    setNewName("");
+  }
+
+  // Reuses the "volume name" field as the target name for the restored
+  // volume - kilnd's import always creates a brand new volume (refuses to
+  // overwrite an existing one), same as `create` above.
+  async function importVolume() {
+    if (!newName.trim()) return;
+    setImporting(true);
+    setActionError(null);
+    const r = await window.kiln.importVolume(newName.trim());
+    setImporting(false);
+    if (!r.ok) {
+      if (r.error) setActionError(r.error);
       return;
     }
     setNewName("");
@@ -62,7 +79,7 @@ export default function VolumesView() {
 
       <form className="toolbar" onSubmit={create}>
         <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="volume name" />
-        <button type="submit" className="primary" disabled={creating || !newName.trim()}>
+        <button type="submit" className="primary" disabled={creating || importing || !newName.trim()}>
           {creating ? (
             <>
               <span className="spinner" />
@@ -70,6 +87,16 @@ export default function VolumesView() {
             </>
           ) : (
             "+ Create volume"
+          )}
+        </button>
+        <button type="button" onClick={importVolume} disabled={creating || importing || !newName.trim()} title="Restore a volume previously exported with Export…">
+          {importing ? (
+            <>
+              <span className="spinner" />
+              Importing…
+            </>
+          ) : (
+            "Import from backup…"
           )}
         </button>
       </form>

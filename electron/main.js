@@ -138,6 +138,27 @@ function apiRequest(method, urlPath, body) {
   return apiRequestTo(connectOptions(), method, urlPath, body);
 }
 
+/** Like `apiRequest`, but for endpoints that speak raw bytes rather than
+ * JSON in one or both directions (volume export/import's tar.gz payloads)
+ * - `apiRequestTo` would corrupt binary data by `JSON.stringify`-ing the
+ * request body and `.toString("utf8")`-decoding the response. Resolves to
+ * `{ status, body: Buffer }`; the caller is responsible for interpreting
+ * `body` (raw bytes, or JSON.parse-able text on error responses). */
+function apiRequestBinary(method, urlPath, bodyBuffer) {
+  return new Promise((resolve) => {
+    const headers = bodyBuffer ? { "Content-Type": "application/gzip", "Content-Length": bodyBuffer.length } : {};
+    const req = http.request({ ...connectOptions(), path: urlPath, method, headers, timeout: 30000 }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve({ status: res.statusCode, body: Buffer.concat(chunks) }));
+    });
+    req.on("timeout", () => req.destroy(new Error("timed out")));
+    req.on("error", (e) => resolve({ status: 0, body: Buffer.from(String(e)) }));
+    if (bodyBuffer) req.write(bodyBuffer);
+    req.end();
+  });
+}
+
 // Launched lazily on startup if kilnd isn't already reachable - it's an
 // *optional* daemon (see kilnd's own module docs), so there's nothing to
 // undo on quit: leaving it running is what lets containers started while
@@ -493,6 +514,31 @@ ipcMain.handle("kiln:remove-network", (_e, name) => apiRequest("DELETE", `/netwo
 ipcMain.handle("kiln:volumes", () => apiRequest("GET", "/volumes"));
 ipcMain.handle("kiln:create-volume", (_e, name) => apiRequest("POST", "/volumes", { name }));
 ipcMain.handle("kiln:remove-volume", (_e, name) => apiRequest("DELETE", `/volumes/${encodeURIComponent(name)}`));
+// Backup/restore for a volume: a native Save/Open dialog around kilnd's
+// `/volumes/:name/export` and `/volumes/:name/import`, same "no renderer
+// filesystem access needed" shape as `export-text` above, just binary.
+ipcMain.handle("kiln:export-volume", async (_e, name) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: `${name}.tar.gz`,
+    filters: [{ name: "Volume backup", extensions: ["tar.gz"] }],
+  });
+  if (canceled || !filePath) return { ok: false };
+  const res = await apiRequestBinary("GET", `/volumes/${encodeURIComponent(name)}/export`);
+  if (res.status !== 200) return { ok: false, error: res.body.toString("utf8") };
+  fs.writeFileSync(filePath, res.body);
+  return { ok: true, filePath };
+});
+ipcMain.handle("kiln:import-volume", async (_e, name) => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openFile"],
+    filters: [{ name: "Volume backup", extensions: ["tar.gz", "gz"] }],
+  });
+  if (canceled || !filePaths?.[0]) return { ok: false };
+  const bytes = fs.readFileSync(filePaths[0]);
+  const res = await apiRequestBinary("POST", `/volumes/${encodeURIComponent(name)}/import`, bytes);
+  if (res.status !== 201) return { ok: false, error: res.body.toString("utf8") };
+  return { ok: true };
+});
 ipcMain.handle("kiln:disk-usage", () => apiRequest("GET", "/disk-usage"));
 ipcMain.handle("kiln:gc", () => apiRequest("POST", "/gc"));
 ipcMain.handle("kiln:list-volume-files", (_e, { name, path }) =>

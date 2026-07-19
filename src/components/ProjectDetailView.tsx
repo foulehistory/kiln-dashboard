@@ -19,6 +19,8 @@ const HISTORY_LENGTH = 30;
 interface StatsSample {
   cpuPct: number;
   memBytes: number;
+  rxRateBps: number;
+  txRateBps: number;
 }
 
 /** Settings > Logs' "lines kept in memory" - kilnd just returns the raw
@@ -50,9 +52,10 @@ export default function ProjectDetailView({
   const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
   const [editLimits, setEditLimits] = useState<ContainerInfo | null>(null);
   // Previous raw sample + its wall-clock time, purely to turn
-  // `cpu_usage_usec` (a monotonically increasing cumulative counter) into
-  // a percent-of-one-core rate between two polls - not itself displayed.
-  const prevRef = useRef<Record<string, { cpuUsageUsec: number; t: number }>>({});
+  // `cpu_usage_usec`/`rx_bytes`/`tx_bytes` (monotonically increasing
+  // cumulative counters) into per-second rates between two polls - not
+  // itself displayed.
+  const prevRef = useRef<Record<string, { cpuUsageUsec: number; rxBytes: number; txBytes: number; t: number }>>({});
 
   useEffect(() => {
     if (!selectedId && containers.length > 0) setSelectedId(containers[0].id);
@@ -87,14 +90,18 @@ export default function ProjectDetailView({
           if (!s) continue;
           const prev = prevRef.current[id];
           let cpuPct = 0;
+          let rxRateBps = 0;
+          let txRateBps = 0;
           if (prev && now > prev.t) {
+            const deltaSec = (now - prev.t) / 1000;
             const deltaCpuUsec = s.cpu_usage_usec - prev.cpuUsageUsec;
-            const deltaRealUsec = (now - prev.t) * 1000;
-            cpuPct = Math.max(0, (deltaCpuUsec / deltaRealUsec) * 100);
+            cpuPct = Math.max(0, (deltaCpuUsec / (deltaSec * 1_000_000)) * 100);
+            if (s.rx_bytes != null) rxRateBps = Math.max(0, (s.rx_bytes - prev.rxBytes) / deltaSec);
+            if (s.tx_bytes != null) txRateBps = Math.max(0, (s.tx_bytes - prev.txBytes) / deltaSec);
           }
-          prevRef.current[id] = { cpuUsageUsec: s.cpu_usage_usec, t: now };
+          prevRef.current[id] = { cpuUsageUsec: s.cpu_usage_usec, rxBytes: s.rx_bytes ?? 0, txBytes: s.tx_bytes ?? 0, t: now };
           const existing = next[id] ?? [];
-          next[id] = [...existing, { cpuPct, memBytes: s.memory_current_bytes }].slice(-HISTORY_LENGTH);
+          next[id] = [...existing, { cpuPct, memBytes: s.memory_current_bytes, rxRateBps, txRateBps }].slice(-HISTORY_LENGTH);
         }
         return next;
       });
@@ -297,6 +304,12 @@ export default function ProjectDetailView({
                 {s && (
                   <div className="muted service-item-stats">
                     {(s.cpu_usage_usec / 1000).toFixed(0)}ms &middot; {formatBytes(s.memory_current_bytes)}
+                    {(s.rx_bytes != null || s.tx_bytes != null) && (
+                      <>
+                        {" "}
+                        &middot; ↓{formatBytes(s.rx_bytes ?? 0)} ↑{formatBytes(s.tx_bytes ?? 0)}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -334,6 +347,13 @@ export default function ProjectDetailView({
                       Memory · {formatBytes(history[selected.id][history[selected.id].length - 1].memBytes)}
                     </div>
                     <Sparkline data={history[selected.id].map((s) => s.memBytes)} color="#e8a33d" />
+                  </div>
+                  <div className="stats-chart">
+                    <div className="muted stats-chart-label">
+                      Network · ↓{formatBytes(history[selected.id][history[selected.id].length - 1].rxRateBps)}/s ↑
+                      {formatBytes(history[selected.id][history[selected.id].length - 1].txRateBps)}/s
+                    </div>
+                    <Sparkline data={history[selected.id].map((s) => s.rxRateBps + s.txRateBps)} color="#4dabf7" />
                   </div>
                 </div>
               )}

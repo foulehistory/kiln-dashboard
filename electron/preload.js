@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld("kiln", {
   createVolume: (name) => ipcRenderer.invoke("kiln:create-volume", name),
   removeVolume: (name) => ipcRenderer.invoke("kiln:remove-volume", name),
   openVolumeFolder: (hostPath) => ipcRenderer.invoke("kiln:open-volume-folder", hostPath),
+  exportVolume: (name) => ipcRenderer.invoke("kiln:export-volume", name),
+  importVolume: (name) => ipcRenderer.invoke("kiln:import-volume", name),
   diskUsage: () => ipcRenderer.invoke("kiln:disk-usage"),
   gc: () => ipcRenderer.invoke("kiln:gc"),
   listVolumeFiles: (name, path) => ipcRenderer.invoke("kiln:list-volume-files", { name, path }),

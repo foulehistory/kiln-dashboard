@@ -6,6 +6,8 @@ import type { VolumeInfo } from "../types";
 export default function VolumeDetailModal({ volume, onClose }: { volume: VolumeInfo; onClose: () => void }) {
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   async function openInExplorer() {
     setOpening(true);
@@ -13,6 +15,14 @@ export default function VolumeDetailModal({ volume, onClose }: { volume: VolumeI
     const r = await window.kiln.openVolumeFolder(volume.host_path);
     setOpening(false);
     if (!r.ok) setOpenError(r.error ?? "failed to open");
+  }
+
+  async function exportVolume() {
+    setExporting(true);
+    setExportError(null);
+    const r = await window.kiln.exportVolume(volume.name);
+    setExporting(false);
+    if (!r.ok && r.error) setExportError(r.error);
   }
 
   return (
@@ -45,8 +55,19 @@ export default function VolumeDetailModal({ volume, onClose }: { volume: VolumeI
         </div>
 
         {openError && <div className="updates-error" style={{ marginBottom: 10 }}>{openError}</div>}
+        {exportError && <div className="updates-error" style={{ marginBottom: 10 }}>{exportError}</div>}
         <div className="confirm-actions">
           <button onClick={onClose}>Close</button>
+          <button onClick={exportVolume} disabled={exporting}>
+            {exporting ? (
+              <>
+                <span className="spinner" />
+                Exporting…
+              </>
+            ) : (
+              "Export…"
+            )}
+          </button>
           <button className="primary" onClick={openInExplorer} disabled={opening}>
             {opening ? (
               <>

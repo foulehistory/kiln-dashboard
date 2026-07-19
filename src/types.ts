@@ -93,6 +93,8 @@ export interface Stats {
   memory_current_bytes: number;
   cpu_usage_usec: number;
   pids_current: number;
+  rx_bytes: number | null;
+  tx_bytes: number | null;
 }
 
 export interface ApiResult<T> {
@@ -230,6 +232,8 @@ export interface KilnApi {
   createVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   removeVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   openVolumeFolder(hostPath: string): Promise<{ ok: boolean; error?: string }>;
+  exportVolume(name: string): Promise<{ ok: boolean; filePath?: string; error?: string }>;
+  importVolume(name: string): Promise<{ ok: boolean; error?: string }>;
   diskUsage(): Promise<ApiResult<DiskUsage>>;
   gc(): Promise<ApiResult<GcResult>>;
   listVolumeFiles(name: string, path: string): Promise<ApiResult<VolumeFileEntry[] | string>>;
