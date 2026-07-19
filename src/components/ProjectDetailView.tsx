@@ -350,10 +350,15 @@ export default function ProjectDetailView({
                   </div>
                   <div className="stats-chart">
                     <div className="muted stats-chart-label">
-                      Network · ↓{formatBytes(history[selected.id][history[selected.id].length - 1].rxRateBps)}/s ↑
-                      {formatBytes(history[selected.id][history[selected.id].length - 1].txRateBps)}/s
+                      ↓ Download · {formatBytes(history[selected.id][history[selected.id].length - 1].rxRateBps)}/s
                     </div>
-                    <Sparkline data={history[selected.id].map((s) => s.rxRateBps + s.txRateBps)} color="#4dabf7" />
+                    <Sparkline data={history[selected.id].map((s) => s.rxRateBps)} color="#4dabf7" />
+                  </div>
+                  <div className="stats-chart">
+                    <div className="muted stats-chart-label">
+                      ↑ Upload · {formatBytes(history[selected.id][history[selected.id].length - 1].txRateBps)}/s
+                    </div>
+                    <Sparkline data={history[selected.id].map((s) => s.txRateBps)} color="#a56de2" />
                   </div>
                 </div>
               )}

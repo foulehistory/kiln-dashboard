@@ -13,6 +13,8 @@ const http = require("http");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+const crypto = require("crypto");
+const AdmZip = require("adm-zip");
 const settingsStore = require("./settings");
 
 // Addons are loaded from disk into a sandboxed <iframe> over this custom
@@ -389,6 +391,100 @@ ipcMain.handle("kiln:open-addons-folder", async () => {
   fs.mkdirSync(addonsDir(), { recursive: true });
   const err = await shell.openPath(addonsDir());
   return err ? { ok: false, error: err } : { ok: true };
+});
+
+// A curated index of installable addons, hosted as a GitHub Release
+// asset on this repo (`addons-v1` - a manual tag, separate from the
+// app's own `v*` release cycle, same pattern already used for the
+// pinned WSL rootfs asset). Updating the store's contents means
+// `gh release upload addons-v1 index.json <addon>.zip --clobber`, not a
+// code change here.
+const ADDON_STORE_INDEX_URL = "https://github.com/foulehistory/kiln-dashboard/releases/download/addons-v1/index.json";
+
+/** GETs `url` into a Buffer, following redirects (GitHub release assets
+ * always 302 to a signed S3/Azure URL) up to `maxRedirects` hops. */
+function httpsGetBuffer(url, maxRedirects = 5) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { "User-Agent": "kiln-dashboard" } }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        if (maxRedirects <= 0) {
+          reject(new Error("too many redirects"));
+          return;
+        }
+        res.resume();
+        httpsGetBuffer(new URL(res.headers.location, url).toString(), maxRedirects - 1).then(resolve, reject);
+        return;
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error(`HTTP ${res.statusCode}`));
+        return;
+      }
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve(Buffer.concat(chunks)));
+    });
+    req.on("error", reject);
+  });
+}
+
+ipcMain.handle("kiln:addon-store-index", async () => {
+  try {
+    const bytes = await httpsGetBuffer(ADDON_STORE_INDEX_URL);
+    const parsed = JSON.parse(bytes.toString("utf8"));
+    if (!Array.isArray(parsed.addons)) throw new Error("index.json has no \"addons\" array");
+    return { ok: true, addons: parsed.addons };
+  } catch (e) {
+    return { ok: false, error: String(e.message || e) };
+  }
+});
+
+ipcMain.handle("kiln:install-addon", async (_e, { id, downloadUrl, sha256 }) => {
+  if (!id || !/^[a-z0-9][a-z0-9-]*$/.test(id)) {
+    return { ok: false, error: "invalid addon id" };
+  }
+  let bytes;
+  try {
+    bytes = await httpsGetBuffer(downloadUrl);
+  } catch (e) {
+    return { ok: false, error: `download failed: ${e.message || e}` };
+  }
+  const actualSha256 = crypto.createHash("sha256").update(bytes).digest("hex");
+  if (actualSha256 !== sha256) {
+    return { ok: false, error: `checksum mismatch: expected ${sha256}, got ${actualSha256}` };
+  }
+
+  // Extract to a staging directory first and validate the manifest
+  // there - so a bad/mismatched zip never partially overwrites whatever
+  // (if anything) was already installed under this id.
+  const stagingDir = path.join(addonsDir(), `.staging-${id}-${Date.now()}`);
+  const finalDir = path.join(addonsDir(), id);
+  try {
+    fs.mkdirSync(stagingDir, { recursive: true });
+    new AdmZip(bytes).extractAllTo(stagingDir, true);
+    // Tolerate a zip whose entries are wrapped in a single top-level
+    // folder (e.g. produced by `zip -r addon.zip addon-folder/`) as well
+    // as one with manifest.json right at the root - only the former
+    // needs unwrapping.
+    let root = stagingDir;
+    if (!fs.existsSync(path.join(root, "manifest.json"))) {
+      const entries = fs.readdirSync(root, { withFileTypes: true });
+      if (entries.length === 1 && entries[0].isDirectory()) {
+        root = path.join(root, entries[0].name);
+      }
+    }
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
+    if (manifest.id !== id) {
+      throw new Error(`manifest.json id "${manifest.id}" does not match store id "${id}"`);
+    }
+    fs.rmSync(finalDir, { recursive: true, force: true });
+    fs.renameSync(root, finalDir);
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+    return { ok: true };
+  } catch (e) {
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+    return { ok: false, error: String(e.message || e) };
+  }
 });
 
 // A generic HTTP relay for addons that need to talk to their own backend

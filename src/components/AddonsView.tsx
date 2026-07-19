@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { FolderIcon } from "./icons";
 import AddonFrame from "./AddonFrame";
+import AddonStoreTab from "./AddonStoreTab";
 import type { AddonManifest } from "../types";
 
 async function fetchAddons() {
@@ -12,6 +13,7 @@ export default function AddonsView() {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [folderError, setFolderError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"installed" | "store">("installed");
   const selected = addons?.find((a) => a.id === selectedId) ?? null;
 
   async function refresh() {
@@ -50,62 +52,79 @@ export default function AddonsView() {
       {error && <div className="empty-state">Could not reach kilnd - is it running? ({error})</div>}
 
       <div className="toolbar">
-        <button type="button" onClick={openFolder}>
-          <FolderIcon /> Open addons folder
+        <button type="button" className={tab === "installed" ? "primary" : undefined} onClick={() => setTab("installed")}>
+          Installed
         </button>
-        <button type="button" onClick={refresh}>
-          Refresh
+        <button type="button" className={tab === "store" ? "primary" : undefined} onClick={() => setTab("store")}>
+          Store
         </button>
+        {tab === "installed" && (
+          <>
+            <button type="button" onClick={openFolder}>
+              <FolderIcon /> Open addons folder
+            </button>
+            <button type="button" onClick={refresh}>
+              Refresh
+            </button>
+          </>
+        )}
       </div>
       {folderError && <div className="updates-error" style={{ marginBottom: 12 }}>{folderError}</div>}
 
-      {addons && addons.length === 0 && (
-        <div className="empty-state">
-          No addons installed. Drop an addon folder (with a manifest.json) into the addons folder above, then hit Refresh.
-        </div>
-      )}
+      {tab === "store" && <AddonStoreTab installed={addons ?? []} onInstalled={refresh} />}
 
-      {addons && addons.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th></th>
-              <th>Name</th>
-              <th>Permissions</th>
-              <th>Enabled</th>
-            </tr>
-          </thead>
-          <tbody>
-            {addons.map((a) => (
-              <tr
-                key={a.id}
-                onClick={() => a.enabled && setSelectedId(a.id)}
-                className={selectedId === a.id ? "addon-row-active" : undefined}
-                style={{ cursor: a.enabled ? "pointer" : "default" }}
-              >
-                <td>{a.icon || "🧩"}</td>
-                <td>
-                  {a.name}
-                  <div className="muted mono" style={{ fontSize: 11 }}>
-                    {a.id}
-                  </div>
-                </td>
-                <td className="muted" style={{ fontSize: 12 }}>
-                  {a.permissions.length === 0 ? "none" : a.permissions.join(", ")}
-                </td>
-                <td onClick={(e) => e.stopPropagation()}>
-                  <label className="toggle">
-                    <input type="checkbox" checked={a.enabled} onChange={(e) => toggle(a.id, e.target.checked)} />
-                    <span className="toggle-track" />
-                  </label>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {tab === "installed" && (
+        <>
+          {addons && addons.length === 0 && (
+            <div className="empty-state">
+              No addons installed. Install one from the Store tab, or drop an addon folder (with a manifest.json) into the addons
+              folder above, then hit Refresh.
+            </div>
+          )}
 
-      {selected && <AddonFrame addon={selected} key={selected.id} />}
+          {addons && addons.length > 0 && (
+            <table>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Name</th>
+                  <th>Permissions</th>
+                  <th>Enabled</th>
+                </tr>
+              </thead>
+              <tbody>
+                {addons.map((a) => (
+                  <tr
+                    key={a.id}
+                    onClick={() => a.enabled && setSelectedId(a.id)}
+                    className={selectedId === a.id ? "addon-row-active" : undefined}
+                    style={{ cursor: a.enabled ? "pointer" : "default" }}
+                  >
+                    <td>{a.icon || "🧩"}</td>
+                    <td>
+                      {a.name}
+                      <div className="muted mono" style={{ fontSize: 11 }}>
+                        {a.id}
+                      </div>
+                    </td>
+                    <td className="muted" style={{ fontSize: 12 }}>
+                      {a.permissions.length === 0 ? "none" : a.permissions.join(", ")}
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <label className="toggle">
+                        <input type="checkbox" checked={a.enabled} onChange={(e) => toggle(a.id, e.target.checked)} />
+                        <span className="toggle-track" />
+                      </label>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {selected && <AddonFrame addon={selected} key={selected.id} />}
+        </>
+      )}
     </div>
   );
 }

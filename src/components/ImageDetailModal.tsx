@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatBytes } from "../format";
+import { useSettings } from "../settings/SettingsContext";
 import type { ImageDetail, ImageInfo } from "../types";
 
 /** No build *history* here on purpose, not an oversight: kiln-image's
@@ -12,12 +13,21 @@ import type { ImageDetail, ImageInfo } from "../types";
 export default function ImageDetailModal({ image, onClose }: { image: ImageInfo; onClose: () => void }) {
   const [detail, setDetail] = useState<ImageDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pushing, setPushing] = useState(false);
+  const { settings } = useSettings();
+  const [pushing, setPushing] = useState<"hub" | "shared" | null>(null);
   const [pushResult, setPushResult] = useState<string | null>(null);
   const [pushError, setPushError] = useState<string | null>(null);
 
   const label = image.repository ? `${image.repository}:${image.tag}` : image.id.slice(0, 16);
-  const pushReference = image.repository ? `${image.repository.replace(/^library\//, "")}:${image.tag}` : null;
+  const bareName = image.repository?.replace(/^library\//, "") ?? null;
+  const pushReference = bareName ? `${bareName}:${image.tag}` : null;
+  // Only offered once a shared registry host is configured (Settings >
+  // Registry) - kiln-registry's ownership rule requires the repository's
+  // first path segment to equal the authenticated username, so this is
+  // the one reference shape that's actually pushable there.
+  const { sharedHost, username } = settings.registry;
+  const sharedReference =
+    bareName && sharedHost && username ? `${sharedHost}/${username}/${bareName}:${image.tag}` : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -34,13 +44,12 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
     };
   }, [image.id]);
 
-  async function push() {
-    if (!pushReference) return;
-    setPushing(true);
+  async function push(reference: string, which: "hub" | "shared") {
+    setPushing(which);
     setPushResult(null);
     setPushError(null);
-    const r = await window.kiln.pushImage(pushReference);
-    setPushing(false);
+    const r = await window.kiln.pushImage(reference);
+    setPushing(null);
     if (r.status !== 200 || typeof r.body === "string") {
       setPushError(typeof r.body === "string" && r.body ? r.body : `failed (status ${r.status})`);
       return;
@@ -125,13 +134,29 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
         )}
         <div className="confirm-actions">
           <button onClick={onClose}>Close</button>
+          {sharedReference && (
+            <button
+              onClick={() => push(sharedReference, "shared")}
+              disabled={pushing !== null}
+              title={`Push as ${sharedReference}`}
+            >
+              {pushing === "shared" ? (
+                <>
+                  <span className="spinner" />
+                  Pushing…
+                </>
+              ) : (
+                "Push to shared registry"
+              )}
+            </button>
+          )}
           <button
             className="primary"
-            onClick={push}
-            disabled={pushing || !pushReference}
+            onClick={() => pushReference && push(pushReference, "hub")}
+            disabled={pushing !== null || !pushReference}
             title={pushReference ? undefined : "Untagged images can't be pushed - tag it first"}
           >
-            {pushing ? (
+            {pushing === "hub" ? (
               <>
                 <span className="spinner" />
                 Pushing…

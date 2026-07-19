@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld("kiln", {
   listAddons: () => ipcRenderer.invoke("kiln:list-addons"),
   toggleAddon: (id, enabled) => ipcRenderer.invoke("kiln:toggle-addon", { id, enabled }),
   openAddonsFolder: () => ipcRenderer.invoke("kiln:open-addons-folder"),
+  addonStoreIndex: () => ipcRenderer.invoke("kiln:addon-store-index"),
+  installAddon: (entry) => ipcRenderer.invoke("kiln:install-addon", entry),
   addonHttpFetch: (url, options) => ipcRenderer.invoke("kiln:addon-http-fetch", { url, options }),
 
   getSettings: () => ipcRenderer.invoke("settings:get"),

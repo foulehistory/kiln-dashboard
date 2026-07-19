@@ -31,6 +31,19 @@ export default function RegistrySection() {
       <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
         {t("registry.warning")}
       </div>
+
+      <SettingRow label={t("registry.sharedHost")}>
+        <input
+          type="text"
+          value={r.sharedHost}
+          onChange={(e) => update({ registry: { sharedHost: e.target.value } })}
+          placeholder="registry.example.com"
+          autoComplete="off"
+        />
+      </SettingRow>
+      <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+        {t("registry.sharedHostHint")}
+      </div>
     </div>
   );
 }

@@ -92,6 +92,13 @@ const DEFAULT_SETTINGS = {
     // on your own trusted machine, not a secret worth real protection.
     username: "",
     password: "",
+    // Host of a self-hosted kiln-registry, e.g. "registry.example.com"
+    // or "http://192.168.1.10:5959" on a LAN with no TLS. Only used by
+    // the dashboard's own "Push image" flow (see main.js) to build the
+    // full "<host>/<username>/<image>:<tag>" reference from a plain
+    // "<image>:<tag>" the user types - never auto-prefixed onto a pull,
+    // so it can't turn a bare Docker Hub reference into something else.
+    sharedHost: "",
   },
   // Addon enable/disable state, keyed by manifest id - the manifests
   // themselves are never stored here, only read live from disk each time

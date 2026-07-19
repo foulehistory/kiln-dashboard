@@ -182,6 +182,13 @@ export interface AppSettings {
   registry: {
     username: string;
     password: string;
+    /** Host of a self-hosted `kiln-registry` (e.g. `registry.example.com`
+     * or `http://192.168.1.10:5959` on a LAN) - when set, pushing an
+     * image in the dashboard only asks for `<image>:<tag>` and this
+     * host + `username` are prefixed automatically. Pulling always
+     * requires a full explicit reference (never auto-prefixed), so a
+     * bare Docker Hub reference like `mysql:8.0` is never ambiguous. */
+    sharedHost: string;
   };
 }
 
@@ -202,6 +209,16 @@ export interface AddonManifest {
    * "containers:read" - see AddonsView.tsx's ADDON_PERMISSION_MAP. */
   permissions: string[];
   enabled: boolean;
+}
+
+export interface AddonStoreEntry {
+  id: string;
+  name: string;
+  icon: string | null;
+  version: string;
+  description: string;
+  download_url: string;
+  sha256: string;
 }
 
 export type SetupState = "needs-features" | "needs-distro" | "needs-kiln" | "needs-base-image" | "ready";
@@ -243,6 +260,8 @@ export interface KilnApi {
   toggleAddon(id: string, enabled: boolean): Promise<{ ok: boolean }>;
   openAddonsFolder(): Promise<{ ok: boolean; error?: string }>;
   addonHttpFetch(url: string, options?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<AddonHttpFetchResult>;
+  addonStoreIndex(): Promise<{ ok: boolean; addons?: AddonStoreEntry[]; error?: string }>;
+  installAddon(entry: { id: string; downloadUrl: string; sha256: string }): Promise<{ ok: boolean; error?: string }>;
 
   getSettings(): Promise<AppSettings>;
   setSettings(patch: DeepPartial<AppSettings>): Promise<AppSettings>;
