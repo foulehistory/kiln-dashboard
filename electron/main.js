@@ -610,6 +610,9 @@ ipcMain.handle("kiln:remove-network", (_e, name) => apiRequest("DELETE", `/netwo
 ipcMain.handle("kiln:volumes", () => apiRequest("GET", "/volumes"));
 ipcMain.handle("kiln:create-volume", (_e, name) => apiRequest("POST", "/volumes", { name }));
 ipcMain.handle("kiln:remove-volume", (_e, name) => apiRequest("DELETE", `/volumes/${encodeURIComponent(name)}`));
+ipcMain.handle("kiln:secrets", () => apiRequest("GET", "/secrets"));
+ipcMain.handle("kiln:create-secret", (_e, { name, value }) => apiRequest("POST", "/secrets", { name, value }));
+ipcMain.handle("kiln:remove-secret", (_e, name) => apiRequest("DELETE", `/secrets/${encodeURIComponent(name)}`));
 // Backup/restore for a volume: a native Save/Open dialog around kilnd's
 // `/volumes/:name/export` and `/volumes/:name/import`, same "no renderer
 // filesystem access needed" shape as `export-text` above, just binary.

@@ -84,6 +84,10 @@ export interface VolumeInfo {
   host_path: string;
 }
 
+export interface SecretInfo {
+  name: string;
+}
+
 export interface VolumeFileEntry {
   name: string;
   is_dir: boolean;
@@ -249,6 +253,9 @@ export interface KilnApi {
   volumes(): Promise<ApiResult<VolumeInfo[]>>;
   createVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   removeVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
+  secrets(): Promise<ApiResult<SecretInfo[]>>;
+  createSecret(name: string, value: string): Promise<ApiResult<{ ok: boolean } | string>>;
+  removeSecret(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   openVolumeFolder(hostPath: string): Promise<{ ok: boolean; error?: string }>;
   exportVolume(name: string): Promise<{ ok: boolean; filePath?: string; error?: string }>;
   importVolume(name: string): Promise<{ ok: boolean; error?: string }>;
