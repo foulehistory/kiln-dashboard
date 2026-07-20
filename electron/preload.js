@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld("kiln", {
   images: () => ipcRenderer.invoke("kiln:images"),
   inspectImage: (id) => ipcRenderer.invoke("kiln:inspect-image", id),
   pushImage: (reference) => ipcRenderer.invoke("kiln:push-image", reference),
+  getScan: (id) => ipcRenderer.invoke("kiln:get-scan", id),
+  runScan: (id) => ipcRenderer.invoke("kiln:run-scan", id),
   pickBuildContext: () => ipcRenderer.invoke("kiln:pick-build-context"),
   buildImage: (contextDir, kilnfilePath, tag) => ipcRenderer.invoke("kiln:build-image", { contextDir, kilnfilePath, tag }),
   removeImage: (id) => ipcRenderer.invoke("kiln:remove-image", id),

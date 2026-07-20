@@ -577,6 +577,8 @@ ipcMain.handle("kiln:containers", () => apiRequest("GET", "/containers"));
 ipcMain.handle("kiln:images", () => apiRequest("GET", "/images"));
 ipcMain.handle("kiln:inspect-image", (_e, id) => apiRequest("GET", `/images/${encodeURIComponent(id)}`));
 ipcMain.handle("kiln:push-image", (_e, reference) => apiRequest("POST", "/images/push", { reference }));
+ipcMain.handle("kiln:get-scan", (_e, id) => apiRequest("GET", `/images/${encodeURIComponent(id)}/scan`));
+ipcMain.handle("kiln:run-scan", (_e, id) => apiRequest("POST", `/images/${encodeURIComponent(id)}/scan`));
 
 // A build context is a Windows folder the user picks natively, but
 // kilnd lives inside WSL2 and only ever sees its own filesystem - WSL2

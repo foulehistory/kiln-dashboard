@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { formatBytes } from "../format";
 import { useSettings } from "../settings/SettingsContext";
-import type { ImageDetail, ImageInfo } from "../types";
+import type { ImageDetail, ImageInfo, ScanReport } from "../types";
+
+const SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
 /** No build *history* here on purpose, not an oversight: kiln-image's
  * layer format deliberately never records which Kilnfile instruction
@@ -17,6 +19,10 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
   const [pushing, setPushing] = useState<"hub" | "shared" | null>(null);
   const [pushResult, setPushResult] = useState<string | null>(null);
   const [pushError, setPushError] = useState<string | null>(null);
+  const [scan, setScan] = useState<ScanReport | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanChecked, setScanChecked] = useState(false);
 
   const label = image.repository ? `${image.repository}:${image.tag}` : image.id.slice(0, 16);
   const bareName = image.repository?.replace(/^library\//, "") ?? null;
@@ -43,6 +49,38 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
       cancelled = true;
     };
   }, [image.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setScan(null);
+    setScanError(null);
+    setScanChecked(false);
+    window.kiln.getScan(image.id).then((r) => {
+      if (cancelled) return;
+      setScanChecked(true);
+      if (r.status === 200 && typeof r.body !== "string") {
+        setScan(r.body);
+      }
+      // A 404 just means "never scanned yet" - not an error, so it's not
+      // surfaced via scanError, only the absence of `scan` triggers the
+      // "Scan" call-to-action below.
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [image.id]);
+
+  async function runScan() {
+    setScanning(true);
+    setScanError(null);
+    const r = await window.kiln.runScan(image.id);
+    setScanning(false);
+    if (r.status !== 200 && r.status !== 201) {
+      setScanError(typeof r.body === "string" && r.body ? r.body : `scan failed (status ${r.status})`);
+      return;
+    }
+    if (typeof r.body !== "string") setScan(r.body);
+  }
 
   async function push(reference: string, which: "hub" | "shared") {
     setPushing(which);
@@ -129,6 +167,69 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className="form-field">
+              <label className="form-label">Vulnerabilities</label>
+              {scan ? (
+                <>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
+                    <span className={`badge ${scan.critical > 0 ? "exited" : "running"}`}>CRITICAL: {scan.critical}</span>
+                    <span className="badge exited">HIGH: {scan.high}</span>
+                    <span className="badge">MEDIUM: {scan.medium}</span>
+                    <span className="badge">LOW: {scan.low}</span>
+                    <button onClick={runScan} disabled={scanning} style={{ marginLeft: "auto" }}>
+                      {scanning ? (
+                        <>
+                          <span className="spinner" />
+                          Scanning…
+                        </>
+                      ) : (
+                        "Re-scan"
+                      )}
+                    </button>
+                  </div>
+                  {scan.findings.length === 0 ? (
+                    <div className="muted">No known vulnerabilities found.</div>
+                  ) : (
+                    <div className="image-layers">
+                      {[...scan.findings]
+                        .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
+                        .map((f) => (
+                          <div key={`${f.id}-${f.package}`} className="image-layer-row">
+                            <span className="muted mono">{f.severity}</span>
+                            <span className="mono">{f.package}</span>
+                            <span className="muted mono">{f.installed_version}</span>
+                            {f.url ? (
+                              <a href={f.url} target="_blank" rel="noreferrer" className="mono">
+                                {f.id}
+                              </a>
+                            ) : (
+                              <span className="mono muted">{f.id}</span>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <span className="muted">{scanChecked ? "Not scanned yet." : "Loading…"}</span>
+                  {scanChecked && (
+                    <button onClick={runScan} disabled={scanning}>
+                      {scanning ? (
+                        <>
+                          <span className="spinner" />
+                          Scanning…
+                        </>
+                      ) : (
+                        "Scan"
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+              {scanError && <div className="updates-error" style={{ marginTop: 6 }}>{scanError}</div>}
             </div>
           </>
         )}

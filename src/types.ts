@@ -49,6 +49,23 @@ export interface ImageDetail {
   signature_verified: boolean;
 }
 
+export interface Finding {
+  id: string;
+  package: string;
+  installed_version: string;
+  fixed_version: string | null;
+  severity: string;
+  url: string | null;
+}
+
+export interface ScanReport {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  findings: Finding[];
+}
+
 export interface NetworkContainer {
   id: string;
   name: string;
@@ -243,6 +260,8 @@ export interface KilnApi {
   images(): Promise<ApiResult<ImageInfo[]>>;
   inspectImage(id: string): Promise<ApiResult<ImageDetail | string>>;
   pushImage(reference: string): Promise<ApiResult<{ id: string; pushed_as: string } | string>>;
+  getScan(id: string): Promise<ApiResult<ScanReport | string>>;
+  runScan(id: string): Promise<ApiResult<ScanReport | string>>;
   pickBuildContext(): Promise<{ windowsPath: string; wslPath: string } | null>;
   buildImage(contextDir: string, kilnfilePath: string | undefined, tag: string | undefined): Promise<ApiResult<BuildResult | string>>;
   removeImage(id: string): Promise<ApiResult<{ message: string } | string>>;
