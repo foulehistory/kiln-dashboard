@@ -60,7 +60,14 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
   return (
     <div className="confirm-overlay" onClick={onClose}>
       <div className="confirm-box modal-volume" onClick={(e) => e.stopPropagation()}>
-        <h2 className="modal-title">{label}</h2>
+        <h2 className="modal-title">
+          {label}{" "}
+          {detail && (
+            <span className={`badge ${detail.signature_verified ? "running" : "exited"}`} style={{ verticalAlign: "middle" }}>
+              {detail.signature_verified ? "✓ Signature vérifiée" : "Non signée"}
+            </span>
+          )}
+        </h2>
 
         {error && <div className="updates-error">{error}</div>}
         {!error && !detail && <div className="muted">Loading…</div>}

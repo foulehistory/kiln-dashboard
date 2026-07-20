@@ -46,6 +46,7 @@ export interface ImageDetail {
   workdir: string;
   exposed_ports: [number, string][];
   layers: LayerDetail[];
+  signature_verified: boolean;
 }
 
 export interface NetworkContainer {
