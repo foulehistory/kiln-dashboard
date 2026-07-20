@@ -80,6 +80,19 @@ contextBridge.exposeInMainWorld("kiln", {
     return () => ipcRenderer.removeListener("kiln:exec-closed", listener);
   },
 
+  netEventsStart: (containerId) => ipcRenderer.invoke("kiln:net-events-start", containerId),
+  netEventsClose: (sessionId) => ipcRenderer.send("kiln:net-events-close", { sessionId }),
+  onNetEventsData: (callback) => {
+    const listener = (_e, payload) => callback(payload);
+    ipcRenderer.on("kiln:net-events-data", listener);
+    return () => ipcRenderer.removeListener("kiln:net-events-data", listener);
+  },
+  onNetEventsClosed: (callback) => {
+    const listener = (_e, payload) => callback(payload);
+    ipcRenderer.on("kiln:net-events-closed", listener);
+    return () => ipcRenderer.removeListener("kiln:net-events-closed", listener);
+  },
+
   setupDetect: () => ipcRenderer.invoke("kiln:setup-detect"),
   setupAdvance: () => ipcRenderer.invoke("kiln:setup-advance"),
   setupRestartWindows: () => ipcRenderer.invoke("kiln:setup-restart-windows"),

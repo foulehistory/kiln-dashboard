@@ -66,6 +66,14 @@ export interface ScanReport {
   findings: Finding[];
 }
 
+export interface FlowEvent {
+  to_container: boolean;
+  protocol: "tcp" | "udp";
+  src: string;
+  dst: string;
+  bytes: number;
+}
+
 export interface NetworkContainer {
   id: string;
   name: string;
@@ -312,6 +320,11 @@ export interface KilnApi {
   execClose(sessionId: number): void;
   onExecData(cb: (payload: { sessionId: number; data: string }) => void): () => void;
   onExecClosed(cb: (payload: { sessionId: number }) => void): () => void;
+
+  netEventsStart(containerId: string): Promise<number>;
+  netEventsClose(sessionId: number): void;
+  onNetEventsData(cb: (payload: { sessionId: number; event: FlowEvent }) => void): () => void;
+  onNetEventsClosed(cb: (payload: { sessionId: number }) => void): () => void;
 
   setupDetect(): Promise<SetupDetectResult>;
   setupAdvance(): Promise<SetupAdvanceResult>;

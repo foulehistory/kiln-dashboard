@@ -805,6 +805,64 @@ ipcMain.on("kiln:exec-close", (_e, { sessionId }) => {
   }
 });
 
+// --- live network flow events --------------------------------------------
+// Same raw-HTTP-Upgrade + sessionId-keyed push pattern as exec sessions
+// above, one-directional only (kilnd/src/handlers/network_events.rs never
+// reads from this socket, only writes newline-delimited JSON events) -
+// see that file's own module docs.
+const netEventSessions = new Map();
+let nextNetEventSessionId = 1;
+
+ipcMain.handle("kiln:net-events-start", (event, containerId) => {
+  return new Promise((resolve, reject) => {
+    const req = http.request({
+      ...connectOptions(),
+      path: `/containers/${encodeURIComponent(containerId)}/network-events`,
+      method: "GET",
+      headers: { Upgrade: "kiln-net-events", Connection: "Upgrade" },
+    });
+    req.on("upgrade", (res, socket) => {
+      const sessionId = nextNetEventSessionId++;
+      netEventSessions.set(sessionId, socket);
+      let buf = "";
+      socket.on("data", (chunk) => {
+        buf += chunk.toString("utf8");
+        let idx;
+        while ((idx = buf.indexOf("\n")) !== -1) {
+          const line = buf.slice(0, idx);
+          buf = buf.slice(idx + 1);
+          if (!line) continue;
+          try {
+            if (!event.sender.isDestroyed()) event.sender.send("kiln:net-events-data", { sessionId, event: JSON.parse(line) });
+          } catch {
+            /* a partial/corrupt line - drop it, the stream continues */
+          }
+        }
+      });
+      socket.on("close", () => {
+        netEventSessions.delete(sessionId);
+        if (!event.sender.isDestroyed()) event.sender.send("kiln:net-events-closed", { sessionId });
+      });
+      resolve(sessionId);
+    });
+    req.on("response", (res) => {
+      let body = "";
+      res.on("data", (c) => (body += c));
+      res.on("end", () => reject(new Error(`network-events failed (${res.statusCode}): ${body}`)));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+});
+
+ipcMain.on("kiln:net-events-close", (_e, { sessionId }) => {
+  const socket = netEventSessions.get(sessionId);
+  if (socket) {
+    socket.end();
+    netEventSessions.delete(sessionId);
+  }
+});
+
 // --- updates -------------------------------------------------------------
 //
 // Two independent things get checked and updated separately, because
