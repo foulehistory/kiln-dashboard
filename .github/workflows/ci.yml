@@ -1,0 +1,20 @@
+name: ci
+
+# Runs on every push to master and every PR, unlike release.yml (tag-only)
+# - a regression should be caught the moment it lands, not just whenever
+# the next tag happens to be pushed.
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  typecheck:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx tsc --noEmit
