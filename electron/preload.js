@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("kiln", {
   removeImage: (id) => ipcRenderer.invoke("kiln:remove-image", id),
   pullImage: (reference) => ipcRenderer.invoke("kiln:pull-image", reference),
   networks: () => ipcRenderer.invoke("kiln:networks"),
+  nodes: () => ipcRenderer.invoke("kiln:nodes"),
   createNetwork: (name, subnet) => ipcRenderer.invoke("kiln:create-network", { name, subnet }),
   removeNetwork: (name) => ipcRenderer.invoke("kiln:remove-network", name),
   volumes: () => ipcRenderer.invoke("kiln:volumes"),

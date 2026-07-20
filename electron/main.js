@@ -746,6 +746,7 @@ ipcMain.handle("export-text", async (_e, { defaultName, content }) => {
   fs.writeFileSync(filePath, content);
   return { ok: true, filePath };
 });
+ipcMain.handle("kiln:nodes", () => apiRequest("GET", "/nodes"));
 ipcMain.handle("kiln:stats", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/stats`));
 ipcMain.handle("kiln:logs", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/logs`));
 ipcMain.handle("kiln:stop", (_e, id) => apiRequest("POST", `/containers/${encodeURIComponent(id)}/stop`));

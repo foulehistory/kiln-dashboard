@@ -88,6 +88,12 @@ export interface NetworkInfo {
   containers: NetworkContainer[];
 }
 
+export interface NodeInfo {
+  name: string;
+  address: string;
+  reachable: boolean;
+}
+
 export interface DiskUsage {
   blobs_bytes: number;
   layers_bytes: number;
@@ -275,6 +281,7 @@ export interface KilnApi {
   removeImage(id: string): Promise<ApiResult<{ message: string } | string>>;
   pullImage(reference: string): Promise<ApiResult<{ id: string } | string>>;
   networks(): Promise<ApiResult<NetworkInfo[]>>;
+  nodes(): Promise<ApiResult<NodeInfo[]>>;
   createNetwork(name: string, subnet?: string): Promise<ApiResult<{ ok: boolean } | string>>;
   removeNetwork(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   volumes(): Promise<ApiResult<VolumeInfo[]>>;

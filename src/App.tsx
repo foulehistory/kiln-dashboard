@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import ContainersView from "./components/ContainersView";
 import ImagesView from "./components/ImagesView";
 import NetworksView from "./components/NetworksView";
+import NodesView from "./components/NodesView";
 import VolumesView from "./components/VolumesView";
 import SecretsView from "./components/SecretsView";
 import TerminalView from "./components/TerminalView";
@@ -19,7 +20,7 @@ import { notify, subscribeToasts, consumeExpectedStop } from "./notifications/no
 import { resolveTheme } from "./theme";
 import type { AddonManifest, ContainerInfo } from "./types";
 
-type StaticTab = "containers" | "images" | "networks" | "volumes" | "secrets" | "terminal" | "addons" | "settings";
+type StaticTab = "containers" | "images" | "networks" | "nodes" | "volumes" | "secrets" | "terminal" | "addons" | "settings";
 // An enabled addon's own dedicated sidebar tab (below the Settings
 // separator) - distinct from the "addons" static tab above, which is the
 // management page (enable/disable, open folder, inline preview).
@@ -177,6 +178,7 @@ function AppShell() {
           <NavItem label="Containers" active={tab === "containers"} onClick={() => setTab("containers")} />
           <NavItem label="Images" active={tab === "images"} onClick={() => setTab("images")} />
           <NavItem label="Networks" active={tab === "networks"} onClick={() => setTab("networks")} />
+          <NavItem label="Nodes" active={tab === "nodes"} onClick={() => setTab("nodes")} />
           <NavItem label="Volumes" active={tab === "volumes"} onClick={() => setTab("volumes")} />
           <NavItem label="Secrets" active={tab === "secrets"} onClick={() => setTab("secrets")} />
           <NavItem label="Terminal" active={tab === "terminal"} onClick={() => setTab("terminal")} />
@@ -200,6 +202,7 @@ function AppShell() {
           {tab === "containers" && <ContainersView />}
           {tab === "images" && <ImagesView />}
           {tab === "networks" && <NetworksView />}
+          {tab === "nodes" && <NodesView />}
           {tab === "volumes" && <VolumesView />}
           {tab === "secrets" && <SecretsView />}
           {tab === "terminal" && <TerminalView />}
