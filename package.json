@@ -1,6 +1,6 @@
 {
   "name": "kiln-dashboard",
-  "version": "0.1.27",
+  "version": "0.1.28",
   "private": true,
   "license": "Apache-2.0",
   "description": "Electron + React dashboard for Kiln: live containers, images, network topology, and an in-browser exec terminal.",

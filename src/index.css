@@ -460,6 +460,37 @@ select:hover {
   font-size: 18px;
 }
 
+.flow-graph {
+  display: block;
+  margin: 4px auto 0;
+}
+
+.flow-graph-edge {
+  stroke: var(--accent);
+  transition: opacity 0.2s linear;
+}
+
+.flow-graph-node {
+  fill: var(--bg);
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+
+.flow-graph-node-bridge {
+  stroke: var(--accent);
+  fill: var(--accent-soft);
+}
+
+.flow-graph-node-external {
+  stroke: var(--muted);
+  stroke-dasharray: 3 2;
+}
+
+.flow-graph-label {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
 .terminal-container {
   height: calc(100vh - 176px);
   background: #05070a;

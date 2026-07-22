@@ -2,13 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import { usePolling } from "../usePolling";
 import ConfirmDialog from "./ConfirmDialog";
 import { useSettings } from "../settings/SettingsContext";
-import type { FlowEvent, NetworkContainer } from "../types";
+import type { FlowEvent, NetworkContainer, NetworkInfo } from "../types";
 
 const MAX_FLOW_ROWS = 100;
+/** How long an edge stays visible (fading out) in the graph view after
+ * its flow was observed - short enough that the graph reads as "live",
+ * long enough that a normal request/response pair's flows overlap
+ * rather than flickering in and out one at a time. */
+const EDGE_FADE_MS = 4000;
 
 interface FlowRow {
   containerName: string;
   event: FlowEvent;
+  /** Client-side receive time (`FlowEvent` itself carries no timestamp) -
+   * only used to fade edges out in the graph view; the list view doesn't
+   * need it. */
+  receivedAt: number;
 }
 
 /** Live per-packet flows for one network's containers - each attached
@@ -46,7 +55,7 @@ function useLiveFlows(containers: NetworkContainer[], enabled: boolean) {
     const offData = window.kiln.onNetEventsData(({ sessionId, event }) => {
       const containerName = containerNameBySession.current.get(sessionId);
       if (!containerName) return;
-      setRows((prev) => [{ containerName, event }, ...prev].slice(0, MAX_FLOW_ROWS));
+      setRows((prev) => [{ containerName, event, receivedAt: Date.now() }, ...prev].slice(0, MAX_FLOW_ROWS));
     });
     const offClosed = window.kiln.onNetEventsClosed(({ sessionId }) => {
       containerNameBySession.current.delete(sessionId);
@@ -64,18 +73,186 @@ function useLiveFlows(containers: NetworkContainer[], enabled: boolean) {
   return rows;
 }
 
-function LiveFlowsPanel({ containers, enabled }: { containers: NetworkContainer[]; enabled: boolean }) {
-  const rows = useLiveFlows(containers, enabled);
-  if (!enabled) return null;
+function LiveFlowsList({ rows }: { rows: FlowRow[] }) {
   return (
     <div className="mono" style={{ marginTop: 12, maxHeight: 220, overflowY: "auto", fontSize: 12 }}>
       {rows.length === 0 && <div className="muted">Waiting for traffic…</div>}
       {rows.map((r, i) => (
         <div key={i} className="muted">
-          <span style={{ color: "var(--fg)" }}>{r.containerName}</span> {r.event.to_container ? "←" : "→"} {r.event.protocol}{" "}
+          <span style={{ color: "var(--text)" }}>{r.containerName}</span> {r.event.to_container ? "←" : "→"} {r.event.protocol}{" "}
           {r.event.src} → {r.event.dst} ({r.event.bytes}B)
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Strips a trailing `:<port>` off an address string - `FlowEvent.src`/
+ * `dst` are host:port pairs, but graph nodes are matched by bare IP.
+ * Deliberately last-colon-based (not IPv6-aware): every address this
+ * project's own eBPF observer emits is IPv4 (see `kiln-net-bpf`'s own
+ * scope), so this is enough for what's actually on the wire here. */
+function stripPort(addr: string): string {
+  const i = addr.lastIndexOf(":");
+  return i === -1 ? addr : addr.slice(0, i);
+}
+
+const GRAPH_SIZE = 320;
+const GRAPH_CENTER = GRAPH_SIZE / 2;
+const CONTAINER_RADIUS = 110;
+const EXTERNAL_NODE = "external";
+const BRIDGE_NODE = "bridge";
+
+interface GraphNode {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  kind: "bridge" | "container" | "external";
+}
+
+interface GraphEdge {
+  key: string;
+  from: string;
+  to: string;
+  age: number;
+  bytes: number;
+  protocol: string;
+}
+
+/** Nodes are laid out on a fixed circle around the bridge (no
+ * force-directed layout - a handful of containers per network doesn't
+ * need one, and a fixed layout means nodes don't jitter around as flows
+ * come and go). The external node - traffic to/from an address that
+ * isn't the bridge or any attached container - only appears once at
+ * least one such flow has actually been observed, so a network with no
+ * outbound traffic doesn't show a permanently dangling node. */
+function layoutNodes(containers: NetworkContainer[], hasExternalTraffic: boolean): GraphNode[] {
+  const nodes: GraphNode[] = [{ id: BRIDGE_NODE, label: "bridge", x: GRAPH_CENTER, y: GRAPH_CENTER, kind: "bridge" }];
+  const count = containers.length;
+  containers.forEach((c, i) => {
+    const angle = (i / Math.max(count, 1)) * 2 * Math.PI - Math.PI / 2;
+    nodes.push({
+      id: c.id,
+      label: c.name,
+      x: GRAPH_CENTER + CONTAINER_RADIUS * Math.cos(angle),
+      y: GRAPH_CENTER + CONTAINER_RADIUS * Math.sin(angle),
+      kind: "container",
+    });
+  });
+  if (hasExternalTraffic) {
+    nodes.push({ id: EXTERNAL_NODE, label: "internet", x: GRAPH_CENTER, y: 16, kind: "external" });
+  }
+  return nodes;
+}
+
+/** Resolves a flow's *other* endpoint (the address that isn't the
+ * observing container itself) to a graph node id - the network's own
+ * gateway IP, another attached container's IP, or the catch-all external
+ * node for anything else (a public address, a different Docker-style
+ * bridge, etc). */
+function resolveEndpoint(addr: string, gateway: string, containers: NetworkContainer[]): string {
+  const ip = stripPort(addr);
+  if (ip === stripPort(gateway)) return BRIDGE_NODE;
+  const match = containers.find((c) => c.ip === ip);
+  return match ? match.id : EXTERNAL_NODE;
+}
+
+function FlowGraph({ net, rows, now }: { net: NetworkInfo; rows: FlowRow[]; now: number }) {
+  const recent = rows.filter((r) => now - r.receivedAt < EDGE_FADE_MS);
+
+  const edgesByPair = new Map<string, GraphEdge>();
+  for (const r of recent) {
+    const container = net.containers.find((c) => c.name === r.containerName);
+    if (!container) continue;
+    const otherAddr = r.event.to_container ? r.event.src : r.event.dst;
+    const other = resolveEndpoint(otherAddr, net.gateway, net.containers);
+    const key = [container.id, other].sort().join("|");
+    const age = now - r.receivedAt;
+    const existing = edgesByPair.get(key);
+    if (!existing || age < existing.age) {
+      edgesByPair.set(key, { key, from: container.id, to: other, age, bytes: r.event.bytes, protocol: r.event.protocol });
+    }
+  }
+  const edges = [...edgesByPair.values()];
+  const hasExternalTraffic = edges.some((e) => e.from === EXTERNAL_NODE || e.to === EXTERNAL_NODE);
+  const nodes = layoutNodes(net.containers, hasExternalTraffic);
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+
+  return (
+    <svg
+      viewBox={`0 0 ${GRAPH_SIZE} ${GRAPH_SIZE}`}
+      width={GRAPH_SIZE}
+      height={GRAPH_SIZE}
+      className="flow-graph"
+      role="img"
+      aria-label={`Live traffic graph for ${net.name}`}
+    >
+      {edges.map((e) => {
+        const from = nodeById.get(e.from);
+        const to = nodeById.get(e.to);
+        if (!from || !to) return null;
+        const opacity = Math.max(0, 1 - e.age / EDGE_FADE_MS);
+        return (
+          <line
+            key={e.key}
+            x1={from.x}
+            y1={from.y}
+            x2={to.x}
+            y2={to.y}
+            className="flow-graph-edge"
+            style={{ opacity }}
+            strokeWidth={e.protocol === "tcp" ? 2 : 1.5}
+          >
+            <title>
+              {from.label} ↔ {to.label} ({e.protocol}, {e.bytes}B)
+            </title>
+          </line>
+        );
+      })}
+      {nodes.map((n) => (
+        <g key={n.id} transform={`translate(${n.x}, ${n.y})`}>
+          <circle r={n.kind === "bridge" ? 20 : 16} className={`flow-graph-node flow-graph-node-${n.kind}`} />
+          <title>{n.label}</title>
+          <text y={n.kind === "bridge" ? 34 : 30} textAnchor="middle" className="flow-graph-label">
+            {n.label.length > 12 ? `${n.label.slice(0, 11)}…` : n.label}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+type FlowView = "list" | "graph";
+
+/** Owns the one `useLiveFlows` subscription for this network and lets
+ * the caller pick which rendering of it to show - list (the original,
+ * kept as-is and as the default) or graph. Both views read the exact
+ * same `rows`, so toggling between them never opens a second live
+ * session for the same containers. */
+function LiveFlowsPanel({ net, enabled }: { net: NetworkInfo; enabled: boolean }) {
+  const rows = useLiveFlows(net.containers, enabled);
+  const [view, setView] = useState<FlowView>("list");
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!enabled || view !== "graph") return;
+    const id = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(id);
+  }, [enabled, view]);
+
+  if (!enabled) return null;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div className="toolbar" style={{ marginBottom: 0 }}>
+        <button className={view === "list" ? "primary" : undefined} onClick={() => setView("list")}>
+          List
+        </button>
+        <button className={view === "graph" ? "primary" : undefined} onClick={() => setView("graph")}>
+          Graph
+        </button>
+      </div>
+      {view === "list" ? <LiveFlowsList rows={rows} /> : <FlowGraph net={net} rows={rows} now={now} />}
     </div>
   );
 }
@@ -188,7 +365,7 @@ export default function NetworksView() {
               )}
             </span>
           </div>
-          <LiveFlowsPanel containers={net.containers} enabled={liveNetwork === net.name} />
+          <LiveFlowsPanel net={net} enabled={liveNetwork === net.name} />
           <div className="network-topology">
             <div className="network-node" style={{ borderColor: "var(--accent)" }}>
               🌉 {net.bridge}
