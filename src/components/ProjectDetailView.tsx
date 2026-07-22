@@ -5,6 +5,7 @@ import { formatBytes } from "../format";
 import ConfirmDialog from "./ConfirmDialog";
 import Sparkline from "./Sparkline";
 import EditLimitsModal from "./EditLimitsModal";
+import HealthBadge from "./HealthBadge";
 import { PlayIcon, StopIcon, TrashIcon, RestartIcon, GaugeIcon } from "./icons";
 import { useSettings } from "../settings/SettingsContext";
 import { expectStop } from "../notifications/notify";
@@ -236,7 +237,9 @@ export default function ProjectDetailView({
               >
                 <span className={`status-dot ${running ? "running" : "exited"}`} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="service-item-name">{serviceName(c, project)}</div>
+                  <div className="service-item-name">
+                    {serviceName(c, project)} <HealthBadge health={c.health} />
+                  </div>
                   <div className="muted mono service-item-sub">{c.ip ?? c.status}</div>
                 </div>
                 <div className="service-item-actions">
@@ -326,6 +329,7 @@ export default function ProjectDetailView({
             <>
               <div className="log-panel-header">
                 <span className={`badge ${selected.status === "running" ? "running" : "exited"}`}>{selected.status}</span>
+                <HealthBadge health={selected.health} />
                 <span className="mono">{serviceName(selected, project)}</span>
                 <span className="muted mono">{selected.image}</span>
                 <span className="muted mono" style={{ marginLeft: "auto" }}>

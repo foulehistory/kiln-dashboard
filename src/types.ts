@@ -10,6 +10,9 @@ export interface ContainerInfo {
   created_at: number;
   memory_limit_bytes: number | null;
   cpu_limit: number | null;
+  /** "none"/"starting"/"healthy"/"unhealthy" - see `kilnd`'s
+   * `ContainerJson::health` docs on the runtime side. */
+  health: string;
 }
 
 export interface ImageInfo {

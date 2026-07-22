@@ -285,6 +285,21 @@ tr:hover td {
   color: var(--muted);
 }
 
+.badge.healthy {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.badge.unhealthy {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.badge.starting {
+  background: rgba(139, 147, 161, 0.15);
+  color: var(--muted);
+}
+
 button {
   background: var(--panel-raised);
   border: 1px solid var(--border);

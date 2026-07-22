@@ -6,10 +6,22 @@ import ProjectDetailView from "./ProjectDetailView";
 import ConfirmDialog from "./ConfirmDialog";
 import NewContainerModal from "./NewContainerModal";
 import EditLimitsModal from "./EditLimitsModal";
+import HealthBadge from "./HealthBadge";
 import { useSettings } from "../settings/SettingsContext";
 import { expectStop } from "../notifications/notify";
 import { PlayIcon, StopIcon, TrashIcon, RestartIcon, SearchIcon, GaugeIcon } from "./icons";
 import type { ContainerInfo, Stats } from "../types";
+
+/** Worst-first: a project with even one unhealthy service reads as
+ * unhealthy overall, same as Docker Compose's own `ps` rolls up health.
+ * `"none"` (no service in the group has a `healthcheck:` configured) is
+ * the only case `HealthBadge` renders as nothing. */
+function aggregateHealth(containers: ContainerInfo[]): string {
+  const healths = containers.map((c) => c.health).filter((h) => h !== "none");
+  if (healths.includes("unhealthy")) return "unhealthy";
+  if (healths.includes("starting")) return "starting";
+  return healths.length > 0 ? "healthy" : "none";
+}
 
 async function fetchContainers() {
   const r = await window.kiln.containers();
@@ -219,7 +231,8 @@ export default function ContainersView() {
                   <td>
                     <span className={`badge ${running.length > 0 ? "running" : "exited"}`}>
                       {running.length}/{g.containers.length} running
-                    </span>
+                    </span>{" "}
+                    <HealthBadge health={aggregateHealth(g.containers)} />
                   </td>
                   <td>{totalCpu > 0 ? (totalCpu / 1000).toFixed(0) : "-"}</td>
                   <td>{totalMem > 0 ? formatBytes(totalMem) : "-"}</td>
@@ -291,7 +304,7 @@ export default function ContainersView() {
                   </td>
                   <td>{c.image}</td>
                   <td>
-                    <span className={`badge ${running ? "running" : "exited"}`}>{c.status}</span>
+                    <span className={`badge ${running ? "running" : "exited"}`}>{c.status}</span> <HealthBadge health={c.health} />
                   </td>
                   <td>{s ? (s.cpu_usage_usec / 1000).toFixed(0) : "-"}</td>
                   <td>{s ? formatBytes(s.memory_current_bytes) : "-"}</td>
