@@ -36,7 +36,15 @@ export default function ContainersView() {
   const interval = settings.behavior.pollingIntervalMs;
   const { data: containers, error } = usePolling(fetchContainers, interval);
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
-  const [busy, setBusy] = useState<string | null>(null);
+  // Tracks which container has a stop/start/restart/remove in flight,
+  // and which of those it is - used to show a "stopping…"/"starting…"
+  // status-dot instead of jumping straight between running/exited with
+  // no feedback in between.
+  // "launching" (not "starting") to avoid colliding with HealthBadge's
+  // own "starting" health status (healthcheck not yet reported) - these
+  // are two unrelated meanings of "starting" that would otherwise fight
+  // over the same badge/dot CSS class.
+  const [busy, setBusy] = useState<{ id: string; action: "stopping" | "launching" } | null>(null);
   const [openProject, setOpenProject] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
   const [showNewContainer, setShowNewContainer] = useState(false);
@@ -87,18 +95,18 @@ export default function ContainersView() {
   }
 
   async function stop(id: string) {
-    setBusy(id);
+    setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.stop(id);
     setBusy(null);
   }
   async function start(id: string) {
-    setBusy(id);
+    setBusy({ id, action: "launching" });
     await window.kiln.startExisting(id);
     setBusy(null);
   }
   async function remove(id: string) {
-    setBusy(id);
+    setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.remove(id);
     setBusy(null);
@@ -108,9 +116,10 @@ export default function ContainersView() {
   // SIGKILL after a grace period if needed - see stop.rs), never while
   // the old process might still be exiting.
   async function restart(id: string) {
-    setBusy(id);
+    setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.stop(id);
+    setBusy({ id, action: "launching" });
     await window.kiln.startExisting(id);
     setBusy(null);
   }
@@ -216,13 +225,22 @@ export default function ContainersView() {
               const totalMem = g.containers.reduce((sum, c) => sum + (statsMap[c.id]?.memory_current_bytes ?? 0), 0);
               const totalRx = g.containers.reduce((sum, c) => sum + (statsMap[c.id]?.rx_bytes ?? 0), 0);
               const totalTx = g.containers.reduce((sum, c) => sum + (statsMap[c.id]?.tx_bytes ?? 0), 0);
-              const anyBusy = g.containers.some((c) => busy === c.id);
+              const anyBusy = g.containers.some((c) => busy?.id === c.id);
+              // Worst-first, like `aggregateHealth` above: any container
+              // mid-stop reads as "stopping" for the whole group even if
+              // others are already settled, since that's the transition
+              // actually still in flight.
+              const groupTransition = g.containers.some((c) => busy?.id === c.id && busy.action === "stopping")
+                ? "stopping"
+                : g.containers.some((c) => busy?.id === c.id && busy.action === "launching")
+                  ? "launching"
+                  : null;
               return (
                 <tr key={`group:${g.project}`} className="group-row" onClick={() => setOpenProject(g.project)}>
                   <td></td>
                   <td>
                     <span className="chevron">›</span>
-                    <span className={`status-dot ${running.length > 0 ? "running" : "exited"}`} />
+                    <span className={`status-dot ${groupTransition ?? (running.length > 0 ? "running" : "exited")}`} />
                     {g.project}
                   </td>
                   <td className="muted">
@@ -293,6 +311,7 @@ export default function ContainersView() {
             {standalone.map((c) => {
               const s = statsMap[c.id];
               const running = c.status === "running";
+              const transition = busy?.id === c.id ? busy.action : null;
               return (
                 <tr key={c.id} onClick={() => setOpenProject(c.id)} style={{ cursor: "pointer" }}>
                   <td onClick={(e) => e.stopPropagation()}>
@@ -304,7 +323,8 @@ export default function ContainersView() {
                   </td>
                   <td>{c.image}</td>
                   <td>
-                    <span className={`badge ${running ? "running" : "exited"}`}>{c.status}</span> <HealthBadge health={c.health} />
+                    <span className={`badge ${transition ?? (running ? "running" : "exited")}`}>{transition ? `${transition}…` : c.status}</span>{" "}
+                    <HealthBadge health={c.health} />
                   </td>
                   <td>{s ? (s.cpu_usage_usec / 1000).toFixed(0) : "-"}</td>
                   <td>{s ? formatBytes(s.memory_current_bytes) : "-"}</td>
@@ -312,7 +332,7 @@ export default function ContainersView() {
                   <td className="mono">{c.ip ?? "-"}</td>
                   <td className="mono muted">{c.command.join(" ").slice(0, 40)}</td>
                   <td onClick={(e) => e.stopPropagation()}>
-                    {busy === c.id ? (
+                    {busy?.id === c.id ? (
                       <span className="muted">
                         <span className="spinner" />
                         working…

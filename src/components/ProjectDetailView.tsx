@@ -48,7 +48,11 @@ export default function ProjectDetailView({
   const { settings } = useSettings();
   const interval = settings.behavior.pollingIntervalMs;
   const [selectedId, setSelectedId] = useState<string | null>(containers[0]?.id ?? null);
-  const [busy, setBusy] = useState<string | null>(null);
+  // Tracks which container has a stop/start/restart/remove in flight, and
+  // which of those it is - the status-dot uses `action` to show a
+  // "stopping…"/"starting…" transition instead of jumping straight from
+  // running to exited (or back) with no feedback in between.
+  const [busy, setBusy] = useState<{ id: string; action: "stopping" | "launching" } | null>(null);
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
   const [history, setHistory] = useState<Record<string, StatsSample[]>>({});
   const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
@@ -131,27 +135,28 @@ export default function ProjectDetailView({
   }, [log]);
 
   async function stop(id: string) {
-    setBusy(id);
+    setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.stop(id);
     setBusy(null);
   }
   async function start(id: string) {
-    setBusy(id);
+    setBusy({ id, action: "launching" });
     await window.kiln.startExisting(id);
     setBusy(null);
   }
   // Safe back-to-back: kilnd's stop only returns once the cgroup is
   // confirmed empty (see kiln-cli's stop_container), never mid-exit.
   async function restart(id: string) {
-    setBusy(id);
+    setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.stop(id);
+    setBusy({ id, action: "launching" });
     await window.kiln.startExisting(id);
     setBusy(null);
   }
   async function remove(id: string) {
-    setBusy(id);
+    setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.remove(id);
     setBusy(null);
@@ -229,13 +234,14 @@ export default function ProjectDetailView({
           {containers.map((c) => {
             const running = c.status === "running";
             const s = statsMap[c.id];
+            const transition = busy?.id === c.id ? busy.action : null;
             return (
               <div
                 key={c.id}
                 className={`service-item${c.id === selectedId ? " active" : ""}`}
                 onClick={() => setSelectedId(c.id)}
               >
-                <span className={`status-dot ${running ? "running" : "exited"}`} />
+                <span className={`status-dot ${transition ?? (running ? "running" : "exited")}`} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="service-item-name">
                     {serviceName(c, project)} <HealthBadge health={c.health} />
@@ -243,7 +249,7 @@ export default function ProjectDetailView({
                   <div className="muted mono service-item-sub">{c.ip ?? c.status}</div>
                 </div>
                 <div className="service-item-actions">
-                  {busy === c.id ? (
+                  {busy?.id === c.id ? (
                     <span className="muted">
                       <span className="spinner" />
                     </span>
