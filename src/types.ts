@@ -136,6 +136,15 @@ export interface Stats {
   tx_bytes: number | null;
 }
 
+/** `GET /containers/:id/security` - see `kiln_cli::commands::inspect::SecurityReport`
+ * on the runtime side. */
+export interface SecurityReport {
+  seccomp: string;
+  effective_capabilities: string[];
+  live_capability_bounding_set: string[] | null;
+  matches_expected: boolean;
+}
+
 export interface ApiResult<T> {
   status: number;
   body: T;
@@ -318,6 +327,7 @@ export interface KilnApi {
   exportText(defaultName: string, content: string): Promise<{ ok: boolean; filePath?: string }>;
   setZoomFactor(factor: number): void;
   stats(id: string): Promise<ApiResult<Stats>>;
+  containerSecurity(id: string): Promise<ApiResult<SecurityReport>>;
   logs(id: string): Promise<ApiResult<string>>;
   stop(id: string): Promise<ApiResult<null>>;
   startExisting(id: string): Promise<ApiResult<ContainerInfo>>;

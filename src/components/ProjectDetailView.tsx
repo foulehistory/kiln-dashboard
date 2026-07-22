@@ -9,7 +9,7 @@ import HealthBadge from "./HealthBadge";
 import { PlayIcon, StopIcon, TrashIcon, RestartIcon, GaugeIcon } from "./icons";
 import { useSettings } from "../settings/SettingsContext";
 import { expectStop } from "../notifications/notify";
-import type { ContainerInfo, Stats } from "../types";
+import type { ContainerInfo, SecurityReport, Stats } from "../types";
 
 /** How many stats samples to keep per container for the sparklines below -
  * at the 2s poll interval this is a 1-minute rolling window, long enough
@@ -34,6 +34,37 @@ function truncateToLastLines(text: string | null, maxLines: number): string {
   const lines = text.split("\n");
   if (lines.length <= maxLines) return text;
   return lines.slice(-maxLines).join("\n");
+}
+
+/** Compact seccomp/capability indicator for the selected service's log
+ * panel header - fetched once per container id (not polled): the
+ * profile a container got is fixed for its whole lifetime, set once at
+ * `execve` and never changed afterward (see `kilnd_core::security`'s own
+ * docs), so there's nothing to refresh mid-session. */
+function SecurityIndicator({ containerId }: { containerId: string }) {
+  const [report, setReport] = useState<SecurityReport | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setReport(null);
+    window.kiln.containerSecurity(containerId).then((r) => {
+      if (!cancelled && r.status === 200) setReport(r.body as SecurityReport);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [containerId]);
+
+  if (!report) return null;
+  const label = report.seccomp === "unconfined" ? "seccomp: unconfined" : `seccomp: enforced · ${report.effective_capabilities.length} caps`;
+  const title = `Effective capabilities:\n${report.effective_capabilities.join(", ") || "(none)"}${
+    report.live_capability_bounding_set && !report.matches_expected ? "\n\n⚠ live bounding set doesn't match what was requested" : ""
+  }`;
+  return (
+    <span className="muted mono" style={{ fontSize: 11 }} title={title}>
+      🛡️ {label}
+    </span>
+  );
 }
 
 export default function ProjectDetailView({
@@ -351,6 +382,7 @@ export default function ProjectDetailView({
               <div className="log-panel-header">
                 <span className={`badge ${selected.status === "running" ? "running" : "exited"}`}>{selected.status}</span>
                 <HealthBadge health={selected.health} />
+                <SecurityIndicator containerId={selected.id} />
                 <span className="mono">{serviceName(selected, project)}</span>
                 <span className="muted mono">{selected.image}</span>
                 <span className="muted mono" style={{ marginLeft: "auto" }}>
