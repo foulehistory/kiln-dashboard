@@ -34,7 +34,7 @@ async function fetchContainers() {
 export default function ContainersView() {
   const { settings } = useSettings();
   const interval = settings.behavior.pollingIntervalMs;
-  const { data: containers, error } = usePolling(fetchContainers, interval);
+  const { data: containers, error, refetch: refetchContainers } = usePolling(fetchContainers, interval);
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
   // Tracks which container has a stop/start/restart/remove in flight,
   // and which of those it is - used to show a "stopping…"/"starting…"
@@ -46,7 +46,7 @@ export default function ContainersView() {
   // over the same badge/dot CSS class.
   const [busy, setBusy] = useState<{ id: string; action: "stopping" | "launching" } | null>(null);
   const [openProject, setOpenProject] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
+  const [confirm, setConfirm] = useState<{ message: string; action: () => void; confirmLabel: string } | null>(null);
   const [showNewContainer, setShowNewContainer] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -84,31 +84,38 @@ export default function ContainersView() {
       action();
       return;
     }
-    setConfirm({ message, action });
+    setConfirm({ message, action, confirmLabel: "Stop" });
   }
   function confirmRemove(message: string, action: () => void) {
     if (!settings.behavior.confirmDestructive) {
       action();
       return;
     }
-    setConfirm({ message, action });
+    setConfirm({ message, action, confirmLabel: "Remove" });
   }
 
   async function stop(id: string) {
     setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.stop(id);
+    // Wait for the polled list to actually reflect "exited" before
+    // dropping the transition indicator - clearing it right away would
+    // leave a stale "running" snapshot on screen for up to a full poll
+    // interval, flashing green before the next tick corrects it to grey.
+    await refetchContainers();
     setBusy(null);
   }
   async function start(id: string) {
     setBusy({ id, action: "launching" });
     await window.kiln.startExisting(id);
+    await refetchContainers();
     setBusy(null);
   }
   async function remove(id: string) {
     setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.remove(id);
+    await refetchContainers();
     setBusy(null);
   }
   // Safe to run back-to-back with no delay: kilnd's stop only returns
@@ -119,8 +126,10 @@ export default function ContainersView() {
     setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.stop(id);
+    await refetchContainers();
     setBusy({ id, action: "launching" });
     await window.kiln.startExisting(id);
+    await refetchContainers();
     setBusy(null);
   }
 
@@ -149,7 +158,14 @@ export default function ContainersView() {
   // instead of rendering a detail view for a project that no longer exists.
   const openGroup = openProject ? allGroups.find((g) => g.project === openProject) : undefined;
   if (openGroup) {
-    return <ProjectDetailView project={openGroup.project} containers={openGroup.containers} onBack={() => setOpenProject(null)} />;
+    return (
+      <ProjectDetailView
+        project={openGroup.project}
+        containers={openGroup.containers}
+        onBack={() => setOpenProject(null)}
+        refetchContainers={refetchContainers}
+      />
+    );
   }
   // A standalone container (not part of any kiln-compose project) has no
   // group to look up by name - openProject holds its id instead in that
@@ -158,7 +174,14 @@ export default function ContainersView() {
   // start/stop/remove, no separate component needed.
   const openStandalone = openProject ? allStandalone.find((c) => c.id === openProject) : undefined;
   if (openStandalone) {
-    return <ProjectDetailView project={openStandalone.name} containers={[openStandalone]} onBack={() => setOpenProject(null)} />;
+    return (
+      <ProjectDetailView
+        project={openStandalone.name}
+        containers={[openStandalone]}
+        onBack={() => setOpenProject(null)}
+        refetchContainers={refetchContainers}
+      />
+    );
   }
 
   return (
@@ -373,7 +396,9 @@ export default function ContainersView() {
           </tbody>
         </table>
       )}
-      {confirm && <ConfirmDialog message={confirm.message} onConfirm={confirm.action} onCancel={() => setConfirm(null)} />}
+      {confirm && (
+        <ConfirmDialog message={confirm.message} confirmLabel={confirm.confirmLabel} onConfirm={confirm.action} onCancel={() => setConfirm(null)} />
+      )}
       {showNewContainer && (
         <NewContainerModal onClose={() => setShowNewContainer(false)} onCreated={() => {}} />
       )}

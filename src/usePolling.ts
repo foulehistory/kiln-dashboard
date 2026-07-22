@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Poll `fn` every `intervalMs`, re-subscribing whenever `deps` changes. */
 export function usePolling<T>(fn: () => Promise<T>, intervalMs: number, deps: unknown[] = []) {
@@ -31,5 +31,19 @@ export function usePolling<T>(fn: () => Promise<T>, intervalMs: number, deps: un
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  return { data, error };
+  /** On-demand fetch, for callers that need fresh data sooner than the
+   * next scheduled tick - e.g. a container list consumer clearing a
+   * "stopping…"/"launching…" transition indicator only once the polled
+   * status has actually caught up with the action that just completed,
+   * rather than on whatever the next tick happens to land on (which
+   * could still show the old "running" status for up to a full
+   * `intervalMs`, flashing back to a stale state before catching up). */
+  const refetch = useCallback(async () => {
+    const d = await fnRef.current();
+    setData(d);
+    setError(null);
+    return d;
+  }, []);
+
+  return { data, error, refetch };
 }

@@ -40,22 +40,28 @@ export default function ProjectDetailView({
   project,
   containers,
   onBack,
+  refetchContainers,
 }: {
   project: string;
   containers: ContainerInfo[];
   onBack: () => void;
+  /** The parent's own container-list poll - awaited before clearing a
+   * "stopping…"/"launching…" transition indicator, so it doesn't briefly
+   * flash back to a stale running/exited status before the next
+   * scheduled tick catches up. See `usePolling`'s own docs on `refetch`. */
+  refetchContainers: () => Promise<unknown>;
 }) {
   const { settings } = useSettings();
   const interval = settings.behavior.pollingIntervalMs;
   const [selectedId, setSelectedId] = useState<string | null>(containers[0]?.id ?? null);
   // Tracks which container has a stop/start/restart/remove in flight, and
   // which of those it is - the status-dot uses `action` to show a
-  // "stopping…"/"starting…" transition instead of jumping straight from
+  // "stopping…"/"launching…" transition instead of jumping straight from
   // running to exited (or back) with no feedback in between.
   const [busy, setBusy] = useState<{ id: string; action: "stopping" | "launching" } | null>(null);
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
   const [history, setHistory] = useState<Record<string, StatsSample[]>>({});
-  const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null);
+  const [confirm, setConfirm] = useState<{ message: string; action: () => void; confirmLabel: string } | null>(null);
   const [editLimits, setEditLimits] = useState<ContainerInfo | null>(null);
   // Previous raw sample + its wall-clock time, purely to turn
   // `cpu_usage_usec`/`rx_bytes`/`tx_bytes` (monotonically increasing
@@ -138,11 +144,17 @@ export default function ProjectDetailView({
     setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.stop(id);
+    // See `refetchContainers`'s own docs: without this, the transition
+    // indicator would clear onto whatever stale status the *parent's*
+    // last poll happened to have, flashing green before that parent
+    // re-renders with the real "exited" status.
+    await refetchContainers();
     setBusy(null);
   }
   async function start(id: string) {
     setBusy({ id, action: "launching" });
     await window.kiln.startExisting(id);
+    await refetchContainers();
     setBusy(null);
   }
   // Safe back-to-back: kilnd's stop only returns once the cgroup is
@@ -151,14 +163,17 @@ export default function ProjectDetailView({
     setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.stop(id);
+    await refetchContainers();
     setBusy({ id, action: "launching" });
     await window.kiln.startExisting(id);
+    await refetchContainers();
     setBusy(null);
   }
   async function remove(id: string) {
     setBusy({ id, action: "stopping" });
     expectStop(id);
     await window.kiln.remove(id);
+    await refetchContainers();
     setBusy(null);
   }
   async function stopAll() {
@@ -177,14 +192,14 @@ export default function ProjectDetailView({
       action();
       return;
     }
-    setConfirm({ message, action });
+    setConfirm({ message, action, confirmLabel: "Stop" });
   }
   function confirmRemove(message: string, action: () => void) {
     if (!settings.behavior.confirmDestructive) {
       action();
       return;
     }
-    setConfirm({ message, action });
+    setConfirm({ message, action, confirmLabel: "Remove" });
   }
 
   const selected = containers.find((c) => c.id === selectedId) ?? null;
@@ -385,7 +400,9 @@ export default function ProjectDetailView({
           )}
         </div>
       </div>
-      {confirm && <ConfirmDialog message={confirm.message} onConfirm={confirm.action} onCancel={() => setConfirm(null)} />}
+      {confirm && (
+        <ConfirmDialog message={confirm.message} confirmLabel={confirm.confirmLabel} onConfirm={confirm.action} onCancel={() => setConfirm(null)} />
+      )}
       {editLimits && <EditLimitsModal container={editLimits} onClose={() => setEditLimits(null)} onUpdated={() => {}} />}
     </div>
   );
