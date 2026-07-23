@@ -129,6 +129,16 @@ export interface SecretInfo {
   ttl_secs?: number;
 }
 
+/** `GET /compose-waiting` - see `kilnd::handlers::compose_waiting` on the
+ * runtime side. A not-yet-created service `kiln-compose up` is currently
+ * blocked on, waiting for a `depends_on: { condition: service_healthy }`
+ * dependency - purely informational, and only present while some
+ * `kiln-compose up` invocation is actually mid-wait. */
+export interface ComposeWaitingInfo {
+  container_name: string;
+  waiting_for: string;
+}
+
 export interface RotateSecretLiveUpdate {
   container_id: string;
   container_name: string;
@@ -333,6 +343,7 @@ export interface KilnApi {
   createVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   removeVolume(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   secrets(): Promise<ApiResult<SecretInfo[]>>;
+  composeWaiting(): Promise<ApiResult<ComposeWaitingInfo[]>>;
   createSecret(name: string, value: string): Promise<ApiResult<{ ok: boolean } | string>>;
   removeSecret(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
   rotateSecret(name: string): Promise<ApiResult<RotateSecretResult | string>>;

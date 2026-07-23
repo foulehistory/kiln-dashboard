@@ -10,7 +10,7 @@ import HealthBadge from "./HealthBadge";
 import { useSettings } from "../settings/SettingsContext";
 import { expectStop } from "../notifications/notify";
 import { PlayIcon, StopIcon, TrashIcon, RestartIcon, SearchIcon, GaugeIcon } from "./icons";
-import type { ContainerInfo, Stats } from "../types";
+import type { ComposeWaitingInfo, ContainerInfo, Stats } from "../types";
 
 /** Worst-first: a project with even one unhealthy service reads as
  * unhealthy overall, same as Docker Compose's own `ps` rolls up health.
@@ -31,10 +31,29 @@ async function fetchContainers() {
   return r.body;
 }
 
+/** Best-effort - absent/unreachable just means "nothing waiting right
+ * now" rather than an error worth surfacing, since this is purely
+ * informational (see `ComposeWaitingInfo`'s own docs). */
+async function fetchComposeWaiting(): Promise<ComposeWaitingInfo[]> {
+  const r = await window.kiln.composeWaiting();
+  return r.status === 200 && Array.isArray(r.body) ? r.body : [];
+}
+
+/** Entries whose `container_name` (`<project>_<service>`) starts with
+ * this project's own prefix - reliable because a marker only ever exists
+ * for a dependent waiting on an *already-started* dependency, so at
+ * least one real container (and hence this project group) is guaranteed
+ * to already exist by the time one shows up. */
+function waitingForProject(waiting: ComposeWaitingInfo[], project: string): ComposeWaitingInfo[] {
+  const prefix = `${project}_`;
+  return waiting.filter((w) => w.container_name.startsWith(prefix));
+}
+
 export default function ContainersView() {
   const { settings } = useSettings();
   const interval = settings.behavior.pollingIntervalMs;
   const { data: containers, error, refetch: refetchContainers } = usePolling(fetchContainers, interval);
+  const { data: composeWaiting } = usePolling(fetchComposeWaiting, interval);
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({});
   // Tracks which container has a stop/start/restart/remove in flight,
   // and which of those it is - used to show a "stopping…"/"starting…"
@@ -258,6 +277,7 @@ export default function ContainersView() {
                 : g.containers.some((c) => busy?.id === c.id && busy.action === "launching")
                   ? "launching"
                   : null;
+              const waitingHere = waitingForProject(composeWaiting ?? [], g.project);
               return (
                 <tr key={`group:${g.project}`} className="group-row" onClick={() => setOpenProject(g.project)}>
                   <td></td>
@@ -268,12 +288,23 @@ export default function ContainersView() {
                   </td>
                   <td className="muted">
                     {g.containers.length} service{g.containers.length === 1 ? "" : "s"}
+                    {waitingHere.length > 0 && ` (+${waitingHere.length} waiting)`}
                   </td>
                   <td>
                     <span className={`badge ${running.length > 0 ? "running" : "exited"}`}>
                       {running.length}/{g.containers.length} running
                     </span>{" "}
                     <HealthBadge health={aggregateHealth(g.containers)} />
+                    {waitingHere.map((w) => (
+                      <span
+                        key={w.container_name}
+                        className="badge waiting"
+                        title={`${w.container_name.slice(g.project.length + 1)} is waiting for ${w.waiting_for} to become healthy before starting`}
+                        style={{ marginLeft: 6 }}
+                      >
+                        ⏳ waiting for {w.waiting_for}
+                      </span>
+                    ))}
                   </td>
                   <td>{totalCpu > 0 ? (totalCpu / 1000).toFixed(0) : "-"}</td>
                   <td>{totalMem > 0 ? formatBytes(totalMem) : "-"}</td>

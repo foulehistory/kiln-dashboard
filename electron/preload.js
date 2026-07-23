@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld("kiln", {
   createVolume: (name) => ipcRenderer.invoke("kiln:create-volume", name),
   removeVolume: (name) => ipcRenderer.invoke("kiln:remove-volume", name),
   secrets: () => ipcRenderer.invoke("kiln:secrets"),
+  composeWaiting: () => ipcRenderer.invoke("kiln:compose-waiting"),
   createSecret: (name, value) => ipcRenderer.invoke("kiln:create-secret", { name, value }),
   removeSecret: (name) => ipcRenderer.invoke("kiln:remove-secret", name),
   rotateSecret: (name) => ipcRenderer.invoke("kiln:rotate-secret", name),

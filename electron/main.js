@@ -613,6 +613,7 @@ ipcMain.handle("kiln:volumes", () => apiRequest("GET", "/volumes"));
 ipcMain.handle("kiln:create-volume", (_e, name) => apiRequest("POST", "/volumes", { name }));
 ipcMain.handle("kiln:remove-volume", (_e, name) => apiRequest("DELETE", `/volumes/${encodeURIComponent(name)}`));
 ipcMain.handle("kiln:secrets", () => apiRequest("GET", "/secrets"));
+ipcMain.handle("kiln:compose-waiting", () => apiRequest("GET", "/compose-waiting"));
 ipcMain.handle("kiln:create-secret", (_e, { name, value }) => apiRequest("POST", "/secrets", { name, value }));
 ipcMain.handle("kiln:remove-secret", (_e, name) => apiRequest("DELETE", `/secrets/${encodeURIComponent(name)}`));
 // No `value` in the body - the dashboard's "Rotate" button always

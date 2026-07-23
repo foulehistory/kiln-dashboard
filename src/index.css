@@ -311,6 +311,12 @@ tr:hover td {
   animation: pulse-fast 0.9s ease-in-out infinite;
 }
 
+.badge.waiting {
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 11px;
+}
+
 button {
   background: var(--panel-raised);
   border: 1px solid var(--border);
