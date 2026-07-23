@@ -118,8 +118,29 @@ export interface VolumeInfo {
   host_path: string;
 }
 
+/** `version`/`created_at`/`rotated_at`/`ttl_secs` are absent for a secret
+ * created before the metadata sidecar existed and never since rotated -
+ * see `kiln_image::secrets::SecretMeta`'s own docs on the runtime side. */
 export interface SecretInfo {
   name: string;
+  version?: number;
+  created_at?: number;
+  rotated_at?: number;
+  ttl_secs?: number;
+}
+
+export interface RotateSecretLiveUpdate {
+  container_id: string;
+  container_name: string;
+  updated: boolean;
+}
+
+/** `POST /secrets/:name/rotate` - see `kilnd::handlers::secrets::RotateResponse`
+ * on the runtime side. */
+export interface RotateSecretResult {
+  meta: { version: number; created_at: number; rotated_at: number | null; ttl_secs: number | null };
+  generated_value: string | null;
+  live_updates: RotateSecretLiveUpdate[];
 }
 
 export interface VolumeFileEntry {
@@ -314,6 +335,7 @@ export interface KilnApi {
   secrets(): Promise<ApiResult<SecretInfo[]>>;
   createSecret(name: string, value: string): Promise<ApiResult<{ ok: boolean } | string>>;
   removeSecret(name: string): Promise<ApiResult<{ ok: boolean } | string>>;
+  rotateSecret(name: string): Promise<ApiResult<RotateSecretResult | string>>;
   openVolumeFolder(hostPath: string): Promise<{ ok: boolean; error?: string }>;
   exportVolume(name: string): Promise<{ ok: boolean; filePath?: string; error?: string }>;
   importVolume(name: string): Promise<{ ok: boolean; error?: string }>;

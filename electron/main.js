@@ -615,6 +615,10 @@ ipcMain.handle("kiln:remove-volume", (_e, name) => apiRequest("DELETE", `/volume
 ipcMain.handle("kiln:secrets", () => apiRequest("GET", "/secrets"));
 ipcMain.handle("kiln:create-secret", (_e, { name, value }) => apiRequest("POST", "/secrets", { name, value }));
 ipcMain.handle("kiln:remove-secret", (_e, name) => apiRequest("DELETE", `/secrets/${encodeURIComponent(name)}`));
+// No `value` in the body - the dashboard's "Rotate" button always
+// generates a random new value server-side (see `kilnd`'s
+// `handlers::secrets::rotate`), never asks the operator to type one in.
+ipcMain.handle("kiln:rotate-secret", (_e, name) => apiRequest("POST", `/secrets/${encodeURIComponent(name)}/rotate`, {}));
 // Backup/restore for a volume: a native Save/Open dialog around kilnd's
 // `/volumes/:name/export` and `/volumes/:name/import`, same "no renderer
 // filesystem access needed" shape as `export-text` above, just binary.

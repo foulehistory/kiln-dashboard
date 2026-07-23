@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("kiln", {
   secrets: () => ipcRenderer.invoke("kiln:secrets"),
   createSecret: (name, value) => ipcRenderer.invoke("kiln:create-secret", { name, value }),
   removeSecret: (name) => ipcRenderer.invoke("kiln:remove-secret", name),
+  rotateSecret: (name) => ipcRenderer.invoke("kiln:rotate-secret", name),
   openVolumeFolder: (hostPath) => ipcRenderer.invoke("kiln:open-volume-folder", hostPath),
   exportVolume: (name) => ipcRenderer.invoke("kiln:export-volume", name),
   importVolume: (name) => ipcRenderer.invoke("kiln:import-volume", name),
