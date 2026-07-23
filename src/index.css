@@ -317,6 +317,19 @@ tr:hover td {
   font-size: 11px;
 }
 
+/* A crashed (non-zero exit) container reads distinctly from a plain,
+   deliberate stop (`.badge.exited`, `.status-dot.exited` - both muted
+   grey) - same red family `unhealthy` already uses, since both mean
+   "this needs your attention", not just "not running right now". */
+.badge.crashed {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.status-dot.crashed {
+  background: var(--bad);
+}
+
 button {
   background: var(--panel-raised);
   border: 1px solid var(--border);
@@ -453,6 +466,97 @@ select:hover {
   padding: 4px 10px;
   border-radius: 7px;
   background: var(--accent-soft);
+}
+
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.view-toggle button {
+  border: none;
+  border-radius: 0;
+  background: var(--panel);
+}
+
+.view-toggle button + button {
+  border-left: 1px solid var(--border);
+}
+
+.view-toggle button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.container-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.container-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-kind {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.card-name {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.card-image,
+.card-metrics {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
 }
 
 .card {

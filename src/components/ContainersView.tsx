@@ -10,6 +10,7 @@ import HealthBadge from "./HealthBadge";
 import { useSettings } from "../settings/SettingsContext";
 import { expectStop } from "../notifications/notify";
 import { PlayIcon, StopIcon, TrashIcon, RestartIcon, SearchIcon, GaugeIcon } from "./icons";
+import { STATUS_LABEL, aggregateStatusKey, statusKey } from "../containerStatus";
 import type { ComposeWaitingInfo, ContainerInfo, Stats } from "../types";
 
 /** Worst-first: a project with even one unhealthy service reads as
@@ -70,6 +71,15 @@ export default function ContainersView() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editLimits, setEditLimits] = useState<ContainerInfo | null>(null);
+  // Cards by default, but never the *only* option - a table is still
+  // better for scanning many containers at once or comparing a specific
+  // column across all of them. Remembered locally (not a synced
+  // AppSetting) since it's a display preference for this view alone.
+  const [viewMode, setViewMode] = useState<"cards" | "table">(() => (localStorage.getItem("containersViewMode") === "table" ? "table" : "cards"));
+  function setViewModeAndPersist(mode: "cards" | "table") {
+    setViewMode(mode);
+    localStorage.setItem("containersViewMode", mode);
+  }
 
   const runningIds = (containers ?? [])
     .filter((c) => c.status === "running")
@@ -216,6 +226,14 @@ export default function ContainersView() {
           <SearchIcon />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter by name or image…" />
         </div>
+        <div className="view-toggle" role="group" aria-label="View mode">
+          <button className={viewMode === "cards" ? "active" : ""} onClick={() => setViewModeAndPersist("cards")}>
+            Cards
+          </button>
+          <button className={viewMode === "table" ? "active" : ""} onClick={() => setViewModeAndPersist("table")}>
+            Table
+          </button>
+        </div>
         {selectedStandalone.length > 0 && (
           <div className="bulk-bar">
             <span className="muted">{selectedStandalone.length} selected</span>
@@ -244,7 +262,7 @@ export default function ContainersView() {
       {!error && (!containers || containers.length === 0) && (
         <div className="empty-state">No containers yet - start one with `kiln run` or `kiln-compose up`.</div>
       )}
-      {containers && containers.length > 0 && (
+      {containers && containers.length > 0 && viewMode === "table" && (
         <table>
           <thead>
             <tr>
@@ -278,12 +296,13 @@ export default function ContainersView() {
                   ? "launching"
                   : null;
               const waitingHere = waitingForProject(composeWaiting ?? [], g.project);
+              const groupStatus = aggregateStatusKey(g.containers, groupTransition);
               return (
                 <tr key={`group:${g.project}`} className="group-row" onClick={() => setOpenProject(g.project)}>
                   <td></td>
                   <td>
                     <span className="chevron">›</span>
-                    <span className={`status-dot ${groupTransition ?? (running.length > 0 ? "running" : "exited")}`} />
+                    <span className={`status-dot ${groupStatus}`} />
                     {g.project}
                   </td>
                   <td className="muted">
@@ -291,7 +310,7 @@ export default function ContainersView() {
                     {waitingHere.length > 0 && ` (+${waitingHere.length} waiting)`}
                   </td>
                   <td>
-                    <span className={`badge ${running.length > 0 ? "running" : "exited"}`}>
+                    <span className={`badge ${groupStatus}`}>
                       {running.length}/{g.containers.length} running
                     </span>{" "}
                     <HealthBadge health={aggregateHealth(g.containers)} />
@@ -366,6 +385,7 @@ export default function ContainersView() {
               const s = statsMap[c.id];
               const running = c.status === "running";
               const transition = busy?.id === c.id ? busy.action : null;
+              const key = statusKey(c.status, transition);
               return (
                 <tr key={c.id} onClick={() => setOpenProject(c.id)} style={{ cursor: "pointer" }}>
                   <td onClick={(e) => e.stopPropagation()}>
@@ -377,8 +397,7 @@ export default function ContainersView() {
                   </td>
                   <td>{c.image}</td>
                   <td>
-                    <span className={`badge ${transition ?? (running ? "running" : "exited")}`}>{transition ? `${transition}…` : c.status}</span>{" "}
-                    <HealthBadge health={c.health} />
+                    <span className={`badge ${key}`}>{transition ? `${transition}…` : c.status}</span> <HealthBadge health={c.health} />
                   </td>
                   <td>{s ? (s.cpu_usage_usec / 1000).toFixed(0) : "-"}</td>
                   <td>{s ? formatBytes(s.memory_current_bytes) : "-"}</td>
@@ -426,6 +445,155 @@ export default function ContainersView() {
             })}
           </tbody>
         </table>
+      )}
+      {containers && containers.length > 0 && viewMode === "cards" && (
+        <div className="card-grid">
+          {groups.map((g) => {
+            const running = g.containers.filter((c) => c.status === "running");
+            const totalCpu = g.containers.reduce((sum, c) => sum + (statsMap[c.id]?.cpu_usage_usec ?? 0), 0);
+            const totalMem = g.containers.reduce((sum, c) => sum + (statsMap[c.id]?.memory_current_bytes ?? 0), 0);
+            const anyBusy = g.containers.some((c) => busy?.id === c.id);
+            const groupTransition = g.containers.some((c) => busy?.id === c.id && busy.action === "stopping")
+              ? "stopping"
+              : g.containers.some((c) => busy?.id === c.id && busy.action === "launching")
+                ? "launching"
+                : null;
+            const key = aggregateStatusKey(g.containers, groupTransition);
+            const waitingHere = waitingForProject(composeWaiting ?? [], g.project);
+            return (
+              <div key={`group:${g.project}`} className="container-card" onClick={() => setOpenProject(g.project)}>
+                <div className="card-header">
+                  <span className="card-kind" title="kiln-compose project">
+                    ▤
+                  </span>
+                  <span className="card-name">{g.project}</span>
+                  <span className={`badge ${key}`}>{STATUS_LABEL[key]}</span>
+                </div>
+                <div className="card-body">
+                  <div className="muted">
+                    {running.length}/{g.containers.length} service{g.containers.length === 1 ? "" : "s"} running
+                  </div>
+                  <div>
+                    <HealthBadge health={aggregateHealth(g.containers)} />
+                    {waitingHere.map((w) => (
+                      <span key={w.container_name} className="badge waiting" style={{ marginLeft: 6 }}>
+                        ⏳ waiting for {w.waiting_for}
+                      </span>
+                    ))}
+                  </div>
+                  {(totalCpu > 0 || totalMem > 0) && (
+                    <div className="mono muted card-metrics">
+                      {(totalCpu / 1000).toFixed(0)}ms &middot; {formatBytes(totalMem)}
+                    </div>
+                  )}
+                </div>
+                <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+                  {anyBusy ? (
+                    <span className="muted">
+                      <span className="spinner" />
+                      working…
+                    </span>
+                  ) : (
+                    <>
+                      {running.length < g.containers.length && (
+                        <button className="icon-btn" title="Start" onClick={() => g.containers.filter((c) => c.status !== "running").forEach((c) => start(c.id))}>
+                          <PlayIcon />
+                        </button>
+                      )}
+                      {running.length > 0 && (
+                        <button className="icon-btn" title="Stop" onClick={() => confirmStop(`Stop all in "${g.project}"?`, () => running.forEach((c) => stop(c.id)))}>
+                          <StopIcon />
+                        </button>
+                      )}
+                      {running.length > 0 && (
+                        <button className="icon-btn" title="Restart" onClick={() => running.forEach((c) => restart(c.id))}>
+                          <RestartIcon />
+                        </button>
+                      )}
+                      <button
+                        className="icon-btn danger"
+                        title="Remove"
+                        onClick={() =>
+                          confirmRemove(`Remove all ${g.containers.length} service${g.containers.length === 1 ? "" : "s"} in "${g.project}"?`, () =>
+                            g.containers.forEach((c) => remove(c.id)),
+                          )
+                        }
+                      >
+                        <TrashIcon />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {standalone.map((c) => {
+            const s = statsMap[c.id];
+            const running = c.status === "running";
+            const transition = busy?.id === c.id ? busy.action : null;
+            const key = statusKey(c.status, transition);
+            return (
+              <div key={c.id} className="container-card" onClick={() => setOpenProject(c.id)}>
+                <div className="card-header">
+                  <span className="card-kind" title="standalone container">
+                    ▢
+                  </span>
+                  <span className="card-name">{c.name}</span>
+                  <span className={`badge ${key}`}>{STATUS_LABEL[key]}</span>
+                </div>
+                <div className="card-body">
+                  <div className="mono muted card-image">{c.image}</div>
+                  <div>
+                    <HealthBadge health={c.health} />
+                  </div>
+                  {s && (
+                    <div className="mono muted card-metrics">
+                      {(s.cpu_usage_usec / 1000).toFixed(0)}ms &middot; {formatBytes(s.memory_current_bytes)}
+                      {c.ip && (
+                        <>
+                          {" "}
+                          &middot; {c.ip}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+                  {busy?.id === c.id ? (
+                    <span className="muted">
+                      <span className="spinner" />
+                      working…
+                    </span>
+                  ) : (
+                    <>
+                      {!running && (
+                        <button className="icon-btn" title="Start" onClick={() => start(c.id)}>
+                          <PlayIcon />
+                        </button>
+                      )}
+                      {running && (
+                        <button className="icon-btn" title="Stop" onClick={() => confirmStop(`Stop "${c.name}"?`, () => stop(c.id))}>
+                          <StopIcon />
+                        </button>
+                      )}
+                      {running && (
+                        <button className="icon-btn" title="Restart" onClick={() => restart(c.id)}>
+                          <RestartIcon />
+                        </button>
+                      )}
+                      <button className="icon-btn" title="Edit limits" onClick={() => setEditLimits(c)}>
+                        <GaugeIcon />
+                      </button>
+                      <button className="icon-btn danger" title="Remove" onClick={() => confirmRemove(`Remove "${c.name}"?`, () => remove(c.id))}>
+                        <TrashIcon />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
       {confirm && (
         <ConfirmDialog message={confirm.message} confirmLabel={confirm.confirmLabel} onConfirm={confirm.action} onCancel={() => setConfirm(null)} />

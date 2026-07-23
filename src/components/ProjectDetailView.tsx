@@ -9,6 +9,7 @@ import HealthBadge from "./HealthBadge";
 import { PlayIcon, StopIcon, TrashIcon, RestartIcon, GaugeIcon } from "./icons";
 import { useSettings } from "../settings/SettingsContext";
 import { expectStop } from "../notifications/notify";
+import { statusKey } from "../containerStatus";
 import type { ContainerInfo, ResourcesReport, SecurityReport, Stats } from "../types";
 
 /** How many stats samples to keep per container for the sparklines below -
@@ -323,13 +324,14 @@ export default function ProjectDetailView({
             const running = c.status === "running";
             const s = statsMap[c.id];
             const transition = busy?.id === c.id ? busy.action : null;
+            const key = statusKey(c.status, transition);
             return (
               <div
                 key={c.id}
                 className={`service-item${c.id === selectedId ? " active" : ""}`}
                 onClick={() => setSelectedId(c.id)}
               >
-                <span className={`status-dot ${transition ?? (running ? "running" : "exited")}`} />
+                <span className={`status-dot ${key}`} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="service-item-name">
                     {serviceName(c, project)} <HealthBadge health={c.health} />
@@ -422,7 +424,7 @@ export default function ProjectDetailView({
           {selected ? (
             <>
               <div className="log-panel-header">
-                <span className={`badge ${selected.status === "running" ? "running" : "exited"}`}>{selected.status}</span>
+                <span className={`badge ${statusKey(selected.status, null)}`}>{selected.status}</span>
                 <HealthBadge health={selected.health} />
                 <SecurityIndicator containerId={selected.id} />
                 <span className="mono">{serviceName(selected, project)}</span>
