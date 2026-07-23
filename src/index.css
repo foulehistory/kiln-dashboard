@@ -1166,6 +1166,60 @@ select:hover {
   border-bottom: none;
 }
 
+.env-var-group-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 10px 0 4px;
+}
+
+.env-var-group-label:first-child {
+  margin-top: 0;
+}
+
+.env-var-list {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.env-var-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 30%) 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.env-var-row:last-child {
+  border-bottom: none;
+}
+
+.env-var-key {
+  color: var(--text);
+  word-break: break-all;
+}
+
+.env-var-value {
+  word-break: break-all;
+}
+
+.env-var-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.env-var-actions .icon-btn {
+  width: 22px;
+  height: 22px;
+}
+
 .addon-row-active td {
   background: rgba(127, 127, 127, 0.12);
 }

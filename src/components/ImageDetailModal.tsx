@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { formatBytes } from "../format";
 import { useSettings } from "../settings/SettingsContext";
+import { isSystemEnvKey } from "../secrets";
+import EnvVarRow from "./EnvVarRow";
 import type { ImageDetail, ImageInfo, ScanReport } from "../types";
 
 const SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
@@ -23,6 +25,7 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanChecked, setScanChecked] = useState(false);
+  const [envFilter, setEnvFilter] = useState("");
 
   const label = image.repository ? `${image.repository}:${image.tag}` : image.id.slice(0, 16);
   const bareName = image.repository?.replace(/^library\//, "") ?? null;
@@ -34,6 +37,10 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
   const { sharedHost, username } = settings.registry;
   const sharedReference =
     bareName && sharedHost && username ? `${sharedHost}/${username}/${bareName}:${image.tag}` : null;
+
+  const envFilterQuery = envFilter.trim().toLowerCase();
+  const appEnv = detail?.env.filter(([k]) => !isSystemEnvKey(k)) ?? [];
+  const systemEnv = detail?.env.filter(([k]) => isSystemEnvKey(k)) ?? [];
 
   useEffect(() => {
     let cancelled = false;
@@ -140,17 +147,42 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
 
             <div className="form-field">
               <label className="form-label">Environment</label>
-              <div>
-                {detail.env.length === 0 ? (
-                  <span className="muted">none</span>
-                ) : (
-                  detail.env.map(([k, v]) => (
-                    <div key={k} className="mono muted">
-                      {k}={v}
+              {detail.env.length === 0 ? (
+                <span className="muted">none</span>
+              ) : (
+                <>
+                  <input
+                    value={envFilter}
+                    onChange={(e) => setEnvFilter(e.target.value)}
+                    placeholder="Filter by key…"
+                    style={{ marginBottom: 8 }}
+                  />
+                  <div className="env-var-group-label">Config applicative</div>
+                  {appEnv.length === 0 ? (
+                    <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
+                      none
                     </div>
-                  ))
-                )}
-              </div>
+                  ) : (
+                    <div className="env-var-list">
+                      {appEnv.map(([k, v]) => (
+                        <EnvVarRow key={k} envKey={k} value={v} hidden={envFilterQuery !== "" && !k.toLowerCase().includes(envFilterQuery)} />
+                      ))}
+                    </div>
+                  )}
+                  <div className="env-var-group-label">Environnement système</div>
+                  {systemEnv.length === 0 ? (
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      none
+                    </div>
+                  ) : (
+                    <div className="env-var-list">
+                      {systemEnv.map(([k, v]) => (
+                        <EnvVarRow key={k} envKey={k} value={v} hidden={envFilterQuery !== "" && !k.toLowerCase().includes(envFilterQuery)} />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             <div className="form-field">
