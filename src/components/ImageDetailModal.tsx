@@ -93,6 +93,22 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
     setPushing(which);
     setPushResult(null);
     setPushError(null);
+    // A shared-registry reference (host + your own username prepended)
+    // never matches this image's own local tag, and kilnd's push handler
+    // (like `kiln push` itself) only ever pushes a reference that
+    // already resolves locally - so it needs tagging under that exact
+    // name first, the same way `docker tag` precedes `docker push`. The
+    // bare Docker Hub reference doesn't have this problem: stripping
+    // "library/" and re-adding it (`normalize_repository`) round-trips
+    // back to the same tag this image already has.
+    if (which === "shared") {
+      const t = await window.kiln.tagImage(image.id, reference);
+      if (t.status !== 200 || typeof t.body === "string") {
+        setPushing(null);
+        setPushError(typeof t.body === "string" && t.body ? t.body : `tagging failed (status ${t.status})`);
+        return;
+      }
+    }
     const r = await window.kiln.pushImage(reference);
     setPushing(null);
     if (r.status !== 200 || typeof r.body === "string") {
@@ -274,8 +290,28 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
         )}
         <div className="confirm-actions">
           <button onClick={onClose}>Close</button>
+          <button
+            className={sharedReference ? undefined : "primary"}
+            onClick={() => pushReference && push(pushReference, "hub")}
+            disabled={pushing !== null || !pushReference}
+            title={
+              !pushReference
+                ? "Untagged images can't be pushed - tag it first"
+                : "Push to Docker Hub - Kiln has no way to send real Docker Hub credentials yet, so this only succeeds for a repository that accepts anonymous pushes (which a real account's own namespace never does). Use \"Push to shared registry\" for your own kiln-registry instead."
+            }
+          >
+            {pushing === "hub" ? (
+              <>
+                <span className="spinner" />
+                Pushing…
+              </>
+            ) : (
+              "Push to Docker Hub"
+            )}
+          </button>
           {sharedReference && (
             <button
+              className="primary"
               onClick={() => push(sharedReference, "shared")}
               disabled={pushing !== null}
               title={`Push as ${sharedReference}`}
@@ -290,21 +326,6 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
               )}
             </button>
           )}
-          <button
-            className="primary"
-            onClick={() => pushReference && push(pushReference, "hub")}
-            disabled={pushing !== null || !pushReference}
-            title={pushReference ? undefined : "Untagged images can't be pushed - tag it first"}
-          >
-            {pushing === "hub" ? (
-              <>
-                <span className="spinner" />
-                Pushing…
-              </>
-            ) : (
-              "Push"
-            )}
-          </button>
         </div>
       </div>
     </div>

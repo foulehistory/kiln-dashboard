@@ -338,6 +338,7 @@ export interface KilnApi {
   images(): Promise<ApiResult<ImageInfo[]>>;
   inspectImage(id: string): Promise<ApiResult<ImageDetail | string>>;
   pushImage(reference: string): Promise<ApiResult<{ id: string; pushed_as: string } | string>>;
+  tagImage(source: string, target: string): Promise<ApiResult<{ id: string; tagged_as: string } | string>>;
   getScan(id: string): Promise<ApiResult<ScanReport | string>>;
   runScan(id: string): Promise<ApiResult<ScanReport | string>>;
   pickBuildContext(): Promise<{ windowsPath: string; wslPath: string } | null>;
