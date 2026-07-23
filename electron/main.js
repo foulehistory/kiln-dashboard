@@ -645,6 +645,13 @@ ipcMain.handle("kiln:import-volume", async (_e, name) => {
   if (res.status !== 201) return { ok: false, error: res.body.toString("utf8") };
   return { ok: true };
 });
+ipcMain.handle("kiln:volume-snapshots", (_e, name) => apiRequest("GET", `/volumes/${encodeURIComponent(name)}/snapshots`));
+ipcMain.handle("kiln:create-volume-snapshot", (_e, { name, keep }) =>
+  apiRequest("POST", `/volumes/${encodeURIComponent(name)}/snapshots`, keep != null ? { keep } : {}),
+);
+ipcMain.handle("kiln:restore-volume-snapshot", (_e, { name, snapshotId }) =>
+  apiRequest("POST", `/volumes/${encodeURIComponent(name)}/snapshots/${encodeURIComponent(snapshotId)}/restore`, {}),
+);
 ipcMain.handle("kiln:disk-usage", () => apiRequest("GET", "/disk-usage"));
 ipcMain.handle("kiln:gc", () => apiRequest("POST", "/gc"));
 ipcMain.handle("kiln:list-volume-files", (_e, { name, path }) =>

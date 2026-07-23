@@ -118,6 +118,15 @@ export interface VolumeInfo {
   host_path: string;
 }
 
+/** A plain timestamped tar.gz copy, not an atomic filesystem-level
+ * snapshot - see `kiln_cli::commands::volume::snapshot_create`'s own
+ * docs on the runtime side for exactly what that does and doesn't
+ * guarantee. */
+export interface VolumeSnapshotInfo {
+  id: string;
+  size_bytes: number;
+}
+
 /** `version`/`created_at`/`rotated_at`/`ttl_secs` are absent for a secret
  * created before the metadata sidecar existed and never since rotated -
  * see `kiln_image::secrets::SecretMeta`'s own docs on the runtime side. */
@@ -350,6 +359,9 @@ export interface KilnApi {
   openVolumeFolder(hostPath: string): Promise<{ ok: boolean; error?: string }>;
   exportVolume(name: string): Promise<{ ok: boolean; filePath?: string; error?: string }>;
   importVolume(name: string): Promise<{ ok: boolean; error?: string }>;
+  volumeSnapshots(name: string): Promise<ApiResult<VolumeSnapshotInfo[]>>;
+  createVolumeSnapshot(name: string, keep?: number): Promise<ApiResult<VolumeSnapshotInfo | string>>;
+  restoreVolumeSnapshot(name: string, snapshotId: string): Promise<ApiResult<{ ok: boolean } | string>>;
   diskUsage(): Promise<ApiResult<DiskUsage>>;
   gc(): Promise<ApiResult<GcResult>>;
   listVolumeFiles(name: string, path: string): Promise<ApiResult<VolumeFileEntry[] | string>>;
