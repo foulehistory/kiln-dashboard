@@ -145,6 +145,18 @@ export interface SecurityReport {
   matches_expected: boolean;
 }
 
+/** `GET /containers/:id/resources` - see `kiln_cli::commands::inspect::ResourcesReport`
+ * on the runtime side. `null` fields mean "unlimited", same as a plain
+ * `kiln run` with no `--memory`/`--cpus`. */
+export interface ResourcesReport {
+  cpu_limit: number | null;
+  memory_limit_bytes: number | null;
+  memory_swap_bytes: number | null;
+  memory_high_bytes: number | null;
+  live: Stats | null;
+  last_exit_oom_killed: boolean;
+}
+
 export interface ApiResult<T> {
   status: number;
   body: T;
@@ -328,6 +340,7 @@ export interface KilnApi {
   setZoomFactor(factor: number): void;
   stats(id: string): Promise<ApiResult<Stats>>;
   containerSecurity(id: string): Promise<ApiResult<SecurityReport>>;
+  containerResources(id: string): Promise<ApiResult<ResourcesReport>>;
   logs(id: string): Promise<ApiResult<string>>;
   stop(id: string): Promise<ApiResult<null>>;
   startExisting(id: string): Promise<ApiResult<ContainerInfo>>;

@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld("kiln", {
   setZoomFactor: (factor) => webFrame.setZoomFactor(factor),
   stats: (id) => ipcRenderer.invoke("kiln:stats", id),
   containerSecurity: (id) => ipcRenderer.invoke("kiln:container-security", id),
+  containerResources: (id) => ipcRenderer.invoke("kiln:container-resources", id),
   logs: (id) => ipcRenderer.invoke("kiln:logs", id),
   stop: (id) => ipcRenderer.invoke("kiln:stop", id),
   startExisting: (id) => ipcRenderer.invoke("kiln:start-existing", id),

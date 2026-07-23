@@ -749,6 +749,7 @@ ipcMain.handle("export-text", async (_e, { defaultName, content }) => {
 ipcMain.handle("kiln:nodes", () => apiRequest("GET", "/nodes"));
 ipcMain.handle("kiln:stats", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/stats`));
 ipcMain.handle("kiln:container-security", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/security`));
+ipcMain.handle("kiln:container-resources", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/resources`));
 ipcMain.handle("kiln:logs", (_e, id) => apiRequest("GET", `/containers/${encodeURIComponent(id)}/logs`));
 ipcMain.handle("kiln:stop", (_e, id) => apiRequest("POST", `/containers/${encodeURIComponent(id)}/stop`));
 ipcMain.handle("kiln:start-existing", (_e, id) => apiRequest("POST", `/containers/${encodeURIComponent(id)}/start`));

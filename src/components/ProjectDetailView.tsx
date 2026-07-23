@@ -9,7 +9,7 @@ import HealthBadge from "./HealthBadge";
 import { PlayIcon, StopIcon, TrashIcon, RestartIcon, GaugeIcon } from "./icons";
 import { useSettings } from "../settings/SettingsContext";
 import { expectStop } from "../notifications/notify";
-import type { ContainerInfo, SecurityReport, Stats } from "../types";
+import type { ContainerInfo, ResourcesReport, SecurityReport, Stats } from "../types";
 
 /** How many stats samples to keep per container for the sparklines below -
  * at the 2s poll interval this is a 1-minute rolling window, long enough
@@ -64,6 +64,48 @@ function SecurityIndicator({ containerId }: { containerId: string }) {
     <span className="muted mono" style={{ fontSize: 11 }} title={title}>
       🛡️ {label}
     </span>
+  );
+}
+
+/** Memory limit vs. live usage, as a filled bar - `null` limit (no
+ * `--memory`/`resources.memory` set) means unlimited, nothing bounded to
+ * show a fraction of, so renders nothing. The limit itself is fixed for
+ * a run's whole lifetime (only `kiln inspect --resources`/this same
+ * endpoint would show a change, and only after a restart), so it's
+ * fetched once per container id here - live usage comes from the
+ * already-polling `statsMap` the parent passes in, not a second poll of
+ * its own. */
+function MemoryLimitBar({ containerId, liveMemBytes }: { containerId: string; liveMemBytes: number | undefined }) {
+  const [report, setReport] = useState<ResourcesReport | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setReport(null);
+    window.kiln.containerResources(containerId).then((r) => {
+      if (!cancelled && r.status === 200) setReport(r.body as ResourcesReport);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [containerId]);
+
+  if (!report || report.memory_limit_bytes == null || liveMemBytes == null) return null;
+  const limit = report.memory_limit_bytes;
+  const pct = Math.min(100, (liveMemBytes / limit) * 100);
+  // Same soft/hard framing as `memory.high`/`memory.max` themselves: past
+  // the soft throttle threshold reads as a warning, not yet a problem;
+  // there's no separate "past the hard cap" color since a container that
+  // actually got OOM-killed no longer has live usage to show a bar for.
+  const pastSoftThreshold = report.memory_high_bytes != null && liveMemBytes >= report.memory_high_bytes;
+  return (
+    <div className="resource-bar" title={`${formatBytes(liveMemBytes)} / ${formatBytes(limit)} memory limit`}>
+      <div className="muted stats-chart-label">
+        Memory limit · {formatBytes(liveMemBytes)} / {formatBytes(limit)}
+      </div>
+      <div className="resource-bar-track">
+        <div className={`resource-bar-fill${pastSoftThreshold ? " warn" : ""}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
   );
 }
 
@@ -422,6 +464,9 @@ export default function ProjectDetailView({
                     />
                   </div>
                 </div>
+              )}
+              {selected.status === "running" && (
+                <MemoryLimitBar containerId={selected.id} liveMemBytes={statsMap[selected.id]?.memory_current_bytes} />
               )}
               <pre className="log-pre" ref={logRef} style={{ whiteSpace: settings.logs.wrapLines ? "pre-wrap" : "pre" }}>
                 {truncateToLastLines(log, settings.logs.maxLines) || "(no output yet)"}
