@@ -222,6 +222,14 @@ fi
   const child = spawn("wsl.exe", ["-d", getWslDistro(), "-u", "root", "-e", "bash", "-c", script], {
     detached: true,
     stdio: "ignore",
+    // Without this, Windows allocates a visible console window for
+    // wsl.exe (a console-subsystem executable) even though nothing here
+    // ever reads/writes it - stdio is already "ignore" and kilnd's own
+    // output goes to kilnd.log, not this window. CREATE_NO_WINDOW (what
+    // this flag maps to) is exactly "run it, but don't give it a
+    // console" - not the same as `detached`, which is about process
+    // group/lifetime, not window visibility.
+    windowsHide: true,
   });
   child.unref();
 }
@@ -724,7 +732,7 @@ function pathExistsViaPowerShell(uncPath) {
     execFile(
       "powershell.exe",
       ["-NoProfile", "-NonInteractive", "-Command", `Test-Path -LiteralPath '${uncPath.replace(/'/g, "''")}'`],
-      { timeout: 5000 },
+      { timeout: 5000, windowsHide: true },
       (err, stdout) => resolve(!err && stdout.trim() === "True"),
     );
   });
@@ -979,7 +987,7 @@ function githubJsonCached(urlPath, ttlMs = 5 * 60 * 1000) {
 
 function runInWsl(script, distro = getWslDistro()) {
   return new Promise((resolve, reject) => {
-    execFile("wsl.exe", ["-d", distro, "-u", "root", "-e", "bash", "-c", script], { timeout: 120000 }, (err, stdout, stderr) => {
+    execFile("wsl.exe", ["-d", distro, "-u", "root", "-e", "bash", "-c", script], { timeout: 120000, windowsHide: true }, (err, stdout, stderr) => {
       if (err) {
         reject(new Error(stderr || err.message));
       } else {
@@ -1096,7 +1104,7 @@ function decodeWslOutput(buf) {
  * "no such distro" vs "wsl.exe doesn't exist at all"), not just errors. */
 function execWsl(args) {
   return new Promise((resolve) => {
-    execFile("wsl.exe", args, { encoding: "buffer", timeout: 30000 }, (err, stdout, stderr) => {
+    execFile("wsl.exe", args, { encoding: "buffer", timeout: 30000, windowsHide: true }, (err, stdout, stderr) => {
       resolve({
         code: err && typeof err.code === "number" ? err.code : err ? -1 : 0,
         stdout: decodeWslOutput(stdout || Buffer.alloc(0)),
@@ -1291,7 +1299,7 @@ ipcMain.handle("kiln:setup-advance", async () => {
 });
 
 ipcMain.handle("kiln:setup-restart-windows", () => {
-  spawn("shutdown.exe", ["/r", "/t", "5"], { detached: true, stdio: "ignore" }).unref();
+  spawn("shutdown.exe", ["/r", "/t", "5"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
 });
 
 // electron-updater talks to the dashboard's *own* GitHub repo (configured

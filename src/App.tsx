@@ -59,6 +59,13 @@ function AppShell() {
   // way to reach into a specific tab's own internal detail-view state.
   const [containerPaletteTarget, setContainerPaletteTarget] = useState<string | null>(null);
   const [setupReady, setSetupReady] = useState<boolean | null>(null);
+  // True from the moment setup is confirmed "ready" until kilnd has
+  // either answered GET /version or ensureKilndRunning() has given up
+  // waiting (see the effect below) - shown as a loading screen instead
+  // of the main UI so a cold kilnd start reads as "starting up", not as
+  // every view's own "Could not reach kilnd" error flashing during the
+  // few seconds it takes to come up.
+  const [kilndStarting, setKilndStarting] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
   // Applies Settings > Comportement's "default view on launch" exactly
   // once, the first time settings finish loading - a ref (not a dep-less
@@ -93,7 +100,7 @@ function AppShell() {
   }, [loaded, settings.behavior.homeView]);
 
   useEffect(() => {
-    window.kiln.setupDetect().then((r) => {
+    window.kiln.setupDetect().then(async (r) => {
       setSetupReady(r.state === "ready");
       // `setupAdvance()`'s "ready" case is what actually calls
       // `ensureKilndRunning()` - previously only ever reached from
@@ -104,8 +111,22 @@ function AppShell() {
       // first-run wizard, the dashboard just shows "Could not reach
       // kilnd" forever until it's started by hand. Safe to call
       // unconditionally here - it's a no-op once kilnd already answers
-      // GET /version.
-      if (r.state === "ready") window.kiln.setupAdvance();
+      // GET /version, so this resolves almost immediately in the common
+      // case and only actually waits (up to 8s) the rare time kilnd is
+      // cold-starting.
+      // Guarded so a rejected setupAdvance() (unexpected, but IPC calls
+      // can always fail) can't leave the loading screen stuck forever -
+      // worse to hide a real "kilnd never came up" behind an infinite
+      // spinner than to fall through to the per-view "Could not reach
+      // kilnd" errors this screen exists to avoid in the common case.
+      if (r.state === "ready") {
+        try {
+          await window.kiln.setupAdvance();
+        } catch {
+          // fall through
+        }
+      }
+      setKilndStarting(false);
     });
   }, []);
 
@@ -181,6 +202,18 @@ function AppShell() {
   }
   if (setupReady === null) {
     return null;
+  }
+  if (kilndStarting) {
+    return (
+      <div className="setup-wizard">
+        <div className="setup-card">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="spinner" />
+            <span>Démarrage de kilnd…</span>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
