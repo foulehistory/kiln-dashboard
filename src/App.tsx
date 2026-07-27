@@ -9,6 +9,7 @@ import TerminalView from "./components/TerminalView";
 import AddonsView from "./components/AddonsView";
 import AddonFrame from "./components/AddonFrame";
 import SettingsView from "./components/SettingsView";
+import CommandPalette from "./components/CommandPalette";
 import UpdateBanner from "./components/UpdateBanner";
 import SetupWizard from "./components/SetupWizard";
 import NotificationBell from "./components/NotificationBell";
@@ -20,11 +21,11 @@ import { notify, subscribeToasts, consumeExpectedStop } from "./notifications/no
 import { resolveTheme } from "./theme";
 import type { AddonManifest, ContainerInfo } from "./types";
 
-type StaticTab = "containers" | "images" | "networks" | "nodes" | "volumes" | "secrets" | "terminal" | "addons" | "settings";
+export type StaticTab = "containers" | "images" | "networks" | "nodes" | "volumes" | "secrets" | "terminal" | "addons" | "settings";
 // An enabled addon's own dedicated sidebar tab (below the Settings
 // separator) - distinct from the "addons" static tab above, which is the
 // management page (enable/disable, open folder, inline preview).
-type Tab = StaticTab | `addon:${string}`;
+export type Tab = StaticTab | `addon:${string}`;
 
 export default function App() {
   return (
@@ -52,6 +53,11 @@ function AppShell() {
   const { settings, loaded } = useSettings();
   const t = useT();
   const [tab, setTab] = useState<Tab>("containers");
+  // Set by the command palette's "open detail" action, consumed once by
+  // ContainersView (see its own `initialOpenTarget` prop docs) then
+  // cleared - the palette lives here, at the App level, with no other
+  // way to reach into a specific tab's own internal detail-view state.
+  const [containerPaletteTarget, setContainerPaletteTarget] = useState<string | null>(null);
   const [setupReady, setSetupReady] = useState<boolean | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   // Applies Settings > Comportement's "default view on launch" exactly
@@ -166,6 +172,13 @@ function AppShell() {
 
   return (
     <div className="app-root">
+      <CommandPalette
+        onNavigate={setTab}
+        onOpenContainer={(key) => {
+          setTab("containers");
+          setContainerPaletteTarget(key);
+        }}
+      />
       <UpdateBanner />
       <div className="app">
         <div className="sidebar">
@@ -199,7 +212,9 @@ function AppShell() {
           )}
         </div>
         <div className="main">
-          {tab === "containers" && <ContainersView />}
+          {tab === "containers" && (
+            <ContainersView initialOpenTarget={containerPaletteTarget} onInitialTargetConsumed={() => setContainerPaletteTarget(null)} />
+          )}
           {tab === "images" && <ImagesView />}
           {tab === "networks" && <NetworksView />}
           {tab === "nodes" && <NodesView />}

@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld("kiln", {
   restoreVolumeSnapshot: (name, snapshotId) => ipcRenderer.invoke("kiln:restore-volume-snapshot", { name, snapshotId }),
   diskUsage: () => ipcRenderer.invoke("kiln:disk-usage"),
   gc: () => ipcRenderer.invoke("kiln:gc"),
+  readKilndLog: () => ipcRenderer.invoke("kiln:read-kilnd-log"),
   listVolumeFiles: (name, path) => ipcRenderer.invoke("kiln:list-volume-files", { name, path }),
   readVolumeFile: (name, path) => ipcRenderer.invoke("kiln:read-volume-file", { name, path }),
 

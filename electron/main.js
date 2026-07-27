@@ -677,6 +677,17 @@ ipcMain.handle("kiln:restore-volume-snapshot", (_e, { name, snapshotId }) =>
 );
 ipcMain.handle("kiln:disk-usage", () => apiRequest("GET", "/disk-usage"));
 ipcMain.handle("kiln:gc", () => apiRequest("POST", "/gc"));
+// Tail rather than the whole file: kilnd.log is append-only for the
+// daemon's entire lifetime, and this is a quick "what's it been up to"
+// look from the command palette, not a full log viewer with paging.
+ipcMain.handle("kiln:read-kilnd-log", async () => {
+  try {
+    const text = await runInWsl('tail -c 20000 "$HOME/.kiln/kilnd.log" 2>/dev/null || echo "(kilnd.log not found - kilnd may not have logged anything yet)"');
+    return { ok: true, text };
+  } catch (e) {
+    return { ok: false, text: String(e.message || e) };
+  }
+});
 ipcMain.handle("kiln:list-volume-files", (_e, { name, path }) =>
   apiRequest("GET", `/volumes/${encodeURIComponent(name)}/files?path=${encodeURIComponent(path || "")}`),
 );

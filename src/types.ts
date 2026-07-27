@@ -365,6 +365,7 @@ export interface KilnApi {
   restoreVolumeSnapshot(name: string, snapshotId: string): Promise<ApiResult<{ ok: boolean } | string>>;
   diskUsage(): Promise<ApiResult<DiskUsage>>;
   gc(): Promise<ApiResult<GcResult>>;
+  readKilndLog(): Promise<{ ok: boolean; text: string }>;
   listVolumeFiles(name: string, path: string): Promise<ApiResult<VolumeFileEntry[] | string>>;
   readVolumeFile(name: string, path: string): Promise<ApiResult<string>>;
 

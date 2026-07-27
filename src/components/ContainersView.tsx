@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePolling } from "../usePolling";
 import { groupByProject } from "../projects";
 import { formatBytes } from "../format";
@@ -50,7 +50,17 @@ function waitingForProject(waiting: ComposeWaitingInfo[], project: string): Comp
   return waiting.filter((w) => w.container_name.startsWith(prefix));
 }
 
-export default function ContainersView() {
+export default function ContainersView({
+  initialOpenTarget,
+  onInitialTargetConsumed,
+}: {
+  /** A project name or standalone container id to jump straight to - set
+   * by the command palette (`CommandPalette.tsx`'s "open detail" action),
+   * which lives at the App level and has no other way to reach into this
+   * view's own `openProject` state. `undefined` outside of that flow. */
+  initialOpenTarget?: string | null;
+  onInitialTargetConsumed?: () => void;
+} = {}) {
   const { settings } = useSettings();
   const interval = settings.behavior.pollingIntervalMs;
   const { data: containers, error, refetch: refetchContainers } = usePolling(fetchContainers, interval);
@@ -66,6 +76,14 @@ export default function ContainersView() {
   // over the same badge/dot CSS class.
   const [busy, setBusy] = useState<{ id: string; action: "stopping" | "launching" } | null>(null);
   const [openProject, setOpenProject] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialOpenTarget) {
+      setOpenProject(initialOpenTarget);
+      onInitialTargetConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialOpenTarget]);
   const [confirm, setConfirm] = useState<{ message: string; action: () => void; confirmLabel: string } | null>(null);
   const [showNewContainer, setShowNewContainer] = useState(false);
   const [search, setSearch] = useState("");
