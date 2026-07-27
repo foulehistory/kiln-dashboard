@@ -93,7 +93,20 @@ function AppShell() {
   }, [loaded, settings.behavior.homeView]);
 
   useEffect(() => {
-    window.kiln.setupDetect().then((r) => setSetupReady(r.state === "ready"));
+    window.kiln.setupDetect().then((r) => {
+      setSetupReady(r.state === "ready");
+      // `setupAdvance()`'s "ready" case is what actually calls
+      // `ensureKilndRunning()` - previously only ever reached from
+      // SetupWizard's own step-by-step flow, which is skipped entirely
+      // once setup has already completed once. That left kilnd with no
+      // auto-restart path at all on a normal launch: if it's down for
+      // any reason (a host/VM restart, a crash) that isn't the
+      // first-run wizard, the dashboard just shows "Could not reach
+      // kilnd" forever until it's started by hand. Safe to call
+      // unconditionally here - it's a no-op once kilnd already answers
+      // GET /version.
+      if (r.state === "ready") window.kiln.setupAdvance();
+    });
   }, []);
 
   const { data: addons } = usePolling(fetchAddons, settings.behavior.pollingIntervalMs);
