@@ -18,7 +18,7 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
   const [detail, setDetail] = useState<ImageDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { settings } = useSettings();
-  const [pushing, setPushing] = useState<"hub" | "shared" | null>(null);
+  const [pushing, setPushing] = useState(false);
   const [pushResult, setPushResult] = useState<string | null>(null);
   const [pushError, setPushError] = useState<string | null>(null);
   const [scan, setScan] = useState<ScanReport | null>(null);
@@ -29,7 +29,6 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
 
   const label = image.repository ? `${image.repository}:${image.tag}` : image.id.slice(0, 16);
   const bareName = image.repository?.replace(/^library\//, "") ?? null;
-  const pushReference = bareName ? `${bareName}:${image.tag}` : null;
   // Only offered once a shared registry host is configured (Settings >
   // Registry) - kiln-registry's ownership rule requires the repository's
   // first path segment to equal the authenticated username, so this is
@@ -89,28 +88,23 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
     if (typeof r.body !== "string") setScan(r.body);
   }
 
-  async function push(reference: string, which: "hub" | "shared") {
-    setPushing(which);
+  async function push(reference: string) {
+    setPushing(true);
     setPushResult(null);
     setPushError(null);
     // A shared-registry reference (host + your own username prepended)
     // never matches this image's own local tag, and kilnd's push handler
     // (like `kiln push` itself) only ever pushes a reference that
     // already resolves locally - so it needs tagging under that exact
-    // name first, the same way `docker tag` precedes `docker push`. The
-    // bare Docker Hub reference doesn't have this problem: stripping
-    // "library/" and re-adding it (`normalize_repository`) round-trips
-    // back to the same tag this image already has.
-    if (which === "shared") {
-      const t = await window.kiln.tagImage(image.id, reference);
-      if (t.status !== 200 || typeof t.body === "string") {
-        setPushing(null);
-        setPushError(typeof t.body === "string" && t.body ? t.body : `tagging failed (status ${t.status})`);
-        return;
-      }
+    // name first, the same way `docker tag` precedes `docker push`.
+    const t = await window.kiln.tagImage(image.id, reference);
+    if (t.status !== 200 || typeof t.body === "string") {
+      setPushing(false);
+      setPushError(typeof t.body === "string" && t.body ? t.body : `tagging failed (status ${t.status})`);
+      return;
     }
     const r = await window.kiln.pushImage(reference);
-    setPushing(null);
+    setPushing(false);
     if (r.status !== 200 || typeof r.body === "string") {
       setPushError(typeof r.body === "string" && r.body ? r.body : `failed (status ${r.status})`);
       return;
@@ -290,33 +284,14 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
         )}
         <div className="confirm-actions">
           <button onClick={onClose}>Close</button>
-          <button
-            className={sharedReference ? undefined : "primary"}
-            onClick={() => pushReference && push(pushReference, "hub")}
-            disabled={pushing !== null || !pushReference}
-            title={
-              !pushReference
-                ? "Untagged images can't be pushed - tag it first"
-                : "Push to Docker Hub - Kiln has no way to send real Docker Hub credentials yet, so this only succeeds for a repository that accepts anonymous pushes (which a real account's own namespace never does). Use \"Push to shared registry\" for your own kiln-registry instead."
-            }
-          >
-            {pushing === "hub" ? (
-              <>
-                <span className="spinner" />
-                Pushing…
-              </>
-            ) : (
-              "Push to Docker Hub"
-            )}
-          </button>
-          {sharedReference && (
+          {sharedReference ? (
             <button
               className="primary"
-              onClick={() => push(sharedReference, "shared")}
-              disabled={pushing !== null}
+              onClick={() => push(sharedReference)}
+              disabled={pushing}
               title={`Push as ${sharedReference}`}
             >
-              {pushing === "shared" ? (
+              {pushing ? (
                 <>
                   <span className="spinner" />
                   Pushing…
@@ -324,6 +299,10 @@ export default function ImageDetailModal({ image, onClose }: { image: ImageInfo;
               ) : (
                 "Push to shared registry"
               )}
+            </button>
+          ) : (
+            <button disabled title="Set a shared registry host and username in Settings > Registry to push images">
+              Push to shared registry
             </button>
           )}
         </div>
