@@ -111,11 +111,21 @@ function connectOptions() {
  * whatever `connectOptions()` currently resolves to) and the Settings
  * page's "Tester la connexion" button (against a candidate host/port the
  * user hasn't saved yet) are built on. */
-function apiRequestTo(connOpts, method, urlPath, body) {
+/** 4s is fine for anything that just reads/writes small local state
+ * (list, create, stop, ...), but far too short for an operation kilnd
+ * itself only finishes once real, possibly slow I/O completes elsewhere
+ * - pulling/pushing an image over the network, or building one. Those
+ * pass `LONG_TIMEOUT_MS` explicitly (see their own call sites below)
+ * rather than raising the default for everyone, since a *hung* kilnd on
+ * a quick call should still fail fast instead of leaving the UI stuck
+ * for 10 minutes. */
+const LONG_TIMEOUT_MS = 10 * 60 * 1000;
+
+function apiRequestTo(connOpts, method, urlPath, body, timeoutMs = 4000) {
   return new Promise((resolve) => {
     const data = body !== undefined ? JSON.stringify(body) : undefined;
     const headers = data ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) } : {};
-    const req = http.request({ ...connOpts, path: urlPath, method, headers, timeout: 4000 }, (res) => {
+    const req = http.request({ ...connOpts, path: urlPath, method, headers, timeout: timeoutMs }, (res) => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => {
@@ -129,15 +139,19 @@ function apiRequestTo(connOpts, method, urlPath, body) {
         resolve({ status: res.statusCode, body: parsed });
       });
     });
-    req.on("timeout", () => req.destroy(new Error("timed out")));
-    req.on("error", (e) => resolve({ status: 0, body: { error: String(e) } }));
+    // A plain string, not `{ error: ... }` - every caller's own error
+    // handling already checks `typeof body === "string"` to surface a
+    // real message instead of a bare "failed (status 0)" (the same
+    // convention a non-JSON success response above already follows).
+    req.on("timeout", () => req.destroy(new Error(`timed out after ${timeoutMs}ms`)));
+    req.on("error", (e) => resolve({ status: 0, body: String(e) }));
     if (data) req.write(data);
     req.end();
   });
 }
 
-function apiRequest(method, urlPath, body) {
-  return apiRequestTo(connectOptions(), method, urlPath, body);
+function apiRequest(method, urlPath, body, timeoutMs) {
+  return apiRequestTo(connectOptions(), method, urlPath, body, timeoutMs);
 }
 
 /** Like `apiRequest`, but for endpoints that speak raw bytes rather than
@@ -576,10 +590,13 @@ app.on("activate", () => {
 ipcMain.handle("kiln:containers", () => apiRequest("GET", "/containers"));
 ipcMain.handle("kiln:images", () => apiRequest("GET", "/images"));
 ipcMain.handle("kiln:inspect-image", (_e, id) => apiRequest("GET", `/images/${encodeURIComponent(id)}`));
-ipcMain.handle("kiln:push-image", (_e, reference) => apiRequest("POST", "/images/push", { reference }));
+// Push/scan are real network I/O (or, for scan, a first-time trivy
+// vulnerability DB download) that can easily run past the default 4s -
+// see LONG_TIMEOUT_MS's own docs.
+ipcMain.handle("kiln:push-image", (_e, reference) => apiRequest("POST", "/images/push", { reference }, LONG_TIMEOUT_MS));
 ipcMain.handle("kiln:tag-image", (_e, { source, target }) => apiRequest("POST", "/images/tag", { source, target }));
 ipcMain.handle("kiln:get-scan", (_e, id) => apiRequest("GET", `/images/${encodeURIComponent(id)}/scan`));
-ipcMain.handle("kiln:run-scan", (_e, id) => apiRequest("POST", `/images/${encodeURIComponent(id)}/scan`));
+ipcMain.handle("kiln:run-scan", (_e, id) => apiRequest("POST", `/images/${encodeURIComponent(id)}/scan`, undefined, LONG_TIMEOUT_MS));
 
 // A build context is a Windows folder the user picks natively, but
 // kilnd lives inside WSL2 and only ever sees its own filesystem - WSL2
@@ -598,7 +615,12 @@ ipcMain.handle("kiln:pick-build-context", async () => {
   return { windowsPath: result.filePaths[0], wslPath: windowsPathToWsl(result.filePaths[0]) };
 });
 ipcMain.handle("kiln:build-image", (_e, { contextDir, kilnfilePath, tag }) =>
-  apiRequest("POST", "/images/build", { context_dir: contextDir, kilnfile_path: kilnfilePath || undefined, tag: tag || undefined }),
+  apiRequest(
+    "POST",
+    "/images/build",
+    { context_dir: contextDir, kilnfile_path: kilnfilePath || undefined, tag: tag || undefined },
+    LONG_TIMEOUT_MS,
+  ),
 );
 ipcMain.handle("kiln:remove-image", (_e, id) => apiRequest("DELETE", `/images/${encodeURIComponent(id)}`));
 // A pull can take a while (real network I/O against a registry) - fine to
@@ -606,7 +628,7 @@ ipcMain.handle("kiln:remove-image", (_e, id) => apiRequest("DELETE", `/images/${
 // independently and kilnd itself gives every connection its own thread,
 // so this doesn't block other polling requests (stats, containers, ...)
 // happening concurrently on the renderer side.
-ipcMain.handle("kiln:pull-image", (_e, reference) => apiRequest("POST", "/images/pull", { reference }));
+ipcMain.handle("kiln:pull-image", (_e, reference) => apiRequest("POST", "/images/pull", { reference }, LONG_TIMEOUT_MS));
 ipcMain.handle("kiln:networks", () => apiRequest("GET", "/networks"));
 ipcMain.handle("kiln:create-network", (_e, { name, subnet }) => apiRequest("POST", "/networks", { name, subnet: subnet || undefined }));
 ipcMain.handle("kiln:remove-network", (_e, name) => apiRequest("DELETE", `/networks/${encodeURIComponent(name)}`));
