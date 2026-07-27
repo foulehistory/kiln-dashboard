@@ -125,6 +125,20 @@ interface GraphEdge {
   reverse: boolean;
 }
 
+/** `kiln-compose` names its implicit network `<project>_default` and each
+ * of its containers `<project>_<service>` (see `kiln-compose/src/main.rs`'s
+ * own module doc). Every container on such a network shares that same
+ * `<project>_` prefix, which is exactly what was making them indistinguishable
+ * in the graph (all truncating down to "mysql_demo_…") - strip it back off
+ * so the node reads as just the service name. Containers not created by
+ * kiln-compose (no matching prefix, or a network not named `..._default`)
+ * fall back to their full name unchanged. */
+function serviceLabel(containerName: string, networkName: string): string {
+  if (!networkName.endsWith("_default")) return containerName;
+  const prefix = `${networkName.slice(0, -"_default".length)}_`;
+  return containerName.startsWith(prefix) ? containerName.slice(prefix.length) : containerName;
+}
+
 /** Nodes are laid out on a fixed circle around the bridge (no
  * force-directed layout - a handful of containers per network doesn't
  * need one, and a fixed layout means nodes don't jitter around as flows
@@ -132,14 +146,15 @@ interface GraphEdge {
  * isn't the bridge or any attached container - only appears once at
  * least one such flow has actually been observed, so a network with no
  * outbound traffic doesn't show a permanently dangling node. */
-function layoutNodes(containers: NetworkContainer[], hasExternalTraffic: boolean): GraphNode[] {
+function layoutNodes(net: NetworkInfo, hasExternalTraffic: boolean): GraphNode[] {
+  const containers = net.containers;
   const nodes: GraphNode[] = [{ id: BRIDGE_NODE, label: "bridge", x: GRAPH_CENTER, y: GRAPH_CENTER, kind: "bridge" }];
   const count = containers.length;
   containers.forEach((c, i) => {
     const angle = (i / Math.max(count, 1)) * 2 * Math.PI - Math.PI / 2;
     nodes.push({
       id: c.id,
-      label: c.name,
+      label: serviceLabel(c.name, net.name),
       x: GRAPH_CENTER + CONTAINER_RADIUS * Math.cos(angle),
       y: GRAPH_CENTER + CONTAINER_RADIUS * Math.sin(angle),
       kind: "container",
@@ -189,7 +204,7 @@ function FlowGraph({ net, rows, now }: { net: NetworkInfo; rows: FlowRow[]; now:
   }
   const edges = [...edgesByPair.values()];
   const hasExternalTraffic = edges.some((e) => e.from === EXTERNAL_NODE || e.to === EXTERNAL_NODE);
-  const nodes = layoutNodes(net.containers, hasExternalTraffic);
+  const nodes = layoutNodes(net, hasExternalTraffic);
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
   return (
