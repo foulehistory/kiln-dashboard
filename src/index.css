@@ -627,6 +627,76 @@ select:hover {
   font-size: 10px;
 }
 
+.flow-graph-packet {
+  fill: var(--accent);
+  animation-name: flow-graph-packet-move;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  offset-rotate: 0deg;
+}
+
+@keyframes flow-graph-packet-move {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+.flow-graph-node-appear {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: flow-graph-node-appear 0.35s ease-out;
+}
+
+@keyframes flow-graph-node-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.flow-graph-ping {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: flow-graph-ping 2s ease-out infinite;
+}
+
+@keyframes flow-graph-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-graph-packet,
+  .flow-graph-node-appear,
+  .flow-graph-ping {
+    animation: none;
+  }
+}
+
 .terminal-container {
   height: calc(100vh - 176px);
   background: #05070a;

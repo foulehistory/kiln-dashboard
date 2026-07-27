@@ -118,6 +118,11 @@ interface GraphEdge {
   age: number;
   bytes: number;
   protocol: string;
+  /** True when the flow travels *into* `from` (i.e. actually `to` -> `from`
+   * on the wire) - kept separately from `from`/`to` (always sorted by id
+   * for stable dedup) so the traveling packet animation can point the
+   * right way instead of always animating `from` -> `to`. */
+  reverse: boolean;
 }
 
 /** Nodes are laid out on a fixed circle around the bridge (no
@@ -171,7 +176,15 @@ function FlowGraph({ net, rows, now }: { net: NetworkInfo; rows: FlowRow[]; now:
     const age = now - r.receivedAt;
     const existing = edgesByPair.get(key);
     if (!existing || age < existing.age) {
-      edgesByPair.set(key, { key, from: container.id, to: other, age, bytes: r.event.bytes, protocol: r.event.protocol });
+      edgesByPair.set(key, {
+        key,
+        from: container.id,
+        to: other,
+        age,
+        bytes: r.event.bytes,
+        protocol: r.event.protocol,
+        reverse: r.event.to_container,
+      });
     }
   }
   const edges = [...edgesByPair.values()];
@@ -193,26 +206,44 @@ function FlowGraph({ net, rows, now }: { net: NetworkInfo; rows: FlowRow[]; now:
         const to = nodeById.get(e.to);
         if (!from || !to) return null;
         const opacity = Math.max(0, 1 - e.age / EDGE_FADE_MS);
+        // Packet travels along the *actual* wire direction, not always from -> to.
+        const src = e.reverse ? to : from;
+        const dst = e.reverse ? from : to;
+        const path = `M ${src.x} ${src.y} L ${dst.x} ${dst.y}`;
         return (
-          <line
-            key={e.key}
-            x1={from.x}
-            y1={from.y}
-            x2={to.x}
-            y2={to.y}
-            className="flow-graph-edge"
-            style={{ opacity }}
-            strokeWidth={e.protocol === "tcp" ? 2 : 1.5}
-          >
-            <title>
-              {from.label} ↔ {to.label} ({e.protocol}, {e.bytes}B)
-            </title>
-          </line>
+          <g key={e.key} style={{ opacity }}>
+            <line
+              x1={from.x}
+              y1={from.y}
+              x2={to.x}
+              y2={to.y}
+              className="flow-graph-edge"
+              strokeWidth={e.protocol === "tcp" ? 2 : 1.5}
+            >
+              <title>
+                {from.label} ↔ {to.label} ({e.protocol}, {e.bytes}B)
+              </title>
+            </line>
+            <circle
+              r={2.5}
+              className="flow-graph-packet"
+              style={{ offsetPath: `path('${path}')`, animationDuration: e.protocol === "tcp" ? "0.9s" : "1.2s" }}
+            />
+          </g>
         );
       })}
       {nodes.map((n) => (
         <g key={n.id} transform={`translate(${n.x}, ${n.y})`}>
-          <circle r={n.kind === "bridge" ? 20 : 16} className={`flow-graph-node flow-graph-node-${n.kind}`} />
+          {n.kind === "external" && (
+            <>
+              <circle r={16} className="flow-graph-ping" />
+              <circle r={16} className="flow-graph-ping" style={{ animationDelay: "1s" }} />
+            </>
+          )}
+          <circle
+            r={n.kind === "bridge" ? 20 : 16}
+            className={`flow-graph-node flow-graph-node-${n.kind} flow-graph-node-appear`}
+          />
           <title>{n.label}</title>
           <text y={n.kind === "bridge" ? 34 : 30} textAnchor="middle" className="flow-graph-label">
             {n.label.length > 12 ? `${n.label.slice(0, 11)}…` : n.label}
