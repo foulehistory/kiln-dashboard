@@ -4,6 +4,7 @@ import { aggregateStatusKey, statusKey, STATUS_LABEL, type StatusKey } from "../
 import { useSettings } from "../settings/SettingsContext";
 import { resolveTheme } from "../theme";
 import { CameraIcon, CloseIcon, CommandIcon, GearIcon, PlayIcon, RestartIcon, SearchIcon, StopIcon, SunMoonIcon } from "./icons";
+import { matchesShortcut } from "../shortcuts";
 import type { ContainerInfo, VolumeInfo } from "../types";
 import type { StaticTab } from "../App";
 
@@ -110,14 +111,12 @@ export default function CommandPalette({ onNavigate, onOpenContainer }: CommandP
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Global Cmd+K/Ctrl+K - platform detection reused from wherever else in
-  // this Electron app already needs it (the same mechanism menu
-  // accelerators use), not re-derived here.
+  // Configurable in Settings > Raccourcis (defaults to Ctrl+K/Cmd+K) -
+  // see src/shortcuts.ts for the combo format and matcher.
+  const shortcut = settings.shortcuts.commandPalette;
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      const isMac = navigator.platform.toLowerCase().includes("mac");
-      const modifier = isMac ? e.metaKey : e.ctrlKey;
-      if (modifier && e.key.toLowerCase() === "k") {
+      if (matchesShortcut(e, shortcut)) {
         e.preventDefault();
         setOpen((prev) => !prev);
       } else if (e.key === "Escape" && open) {
@@ -127,7 +126,7 @@ export default function CommandPalette({ onNavigate, onOpenContainer }: CommandP
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [open, shortcut]);
 
   useEffect(() => {
     if (!open) return;

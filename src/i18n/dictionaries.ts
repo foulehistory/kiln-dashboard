@@ -131,6 +131,13 @@ const fr = {
   "registry.warning": "Stocké en clair dans le fichier de réglages local (pas de coffre-fort système) - à réserver à un registre de confiance sur cette machine.",
   "registry.sharedHost": "Registre partagé (kiln-registry)",
   "registry.sharedHostHint": "Optionnel - l'hôte d'un serveur kiln-registry auto-hébergé (ex. registry.example.com). Une fois renseigné, \"Push image\" ne demande que <image>:<tag> et préfixe automatiquement <hôte>/<nom d'utilisateur>/. Le pull reste toujours une référence complète, jamais préfixée automatiquement.",
+
+  "settings.section.shortcuts": "Raccourcis",
+  "shortcuts.commandPalette": "Palette de commandes",
+  "shortcuts.commandPalette.desc": "Ouvre/ferme la recherche rapide de conteneurs et d'actions, depuis n'importe quel onglet.",
+  "shortcuts.recording": "Appuyez sur une combinaison…",
+  "shortcuts.reset": "Réinitialiser",
+  "shortcuts.needsModifier": "Il faut au moins une touche modificatrice (Ctrl, Alt, Cmd) en plus de la touche principale.",
 } as const;
 
 const en: Record<keyof typeof fr, string> = {
@@ -257,6 +264,13 @@ const en: Record<keyof typeof fr, string> = {
   "registry.warning": "Stored in plain text in your local settings file (no OS keychain) - only use this for a registry you trust on this machine.",
   "registry.sharedHost": "Shared registry (kiln-registry)",
   "registry.sharedHostHint": "Optional - the host of a self-hosted kiln-registry server (e.g. registry.example.com). Once set, \"Push image\" only asks for <image>:<tag> and prefixes <host>/<username>/ automatically. Pulling always uses a full reference, never auto-prefixed.",
+
+  "settings.section.shortcuts": "Shortcuts",
+  "shortcuts.commandPalette": "Command palette",
+  "shortcuts.commandPalette.desc": "Opens/closes quick search over containers and actions, from any tab.",
+  "shortcuts.recording": "Press a key combination…",
+  "shortcuts.reset": "Reset",
+  "shortcuts.needsModifier": "Needs at least one modifier key (Ctrl, Alt, Cmd) in addition to the main key.",
 };
 
 export const dictionaries: Record<Lang, Record<keyof typeof fr, string>> = { fr, en };

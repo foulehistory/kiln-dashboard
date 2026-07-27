@@ -290,6 +290,12 @@ export interface AppSettings {
      * bare Docker Hub reference like `mysql:8.0` is never ambiguous. */
     sharedHost: string;
   };
+  shortcuts: {
+    /** A normalized combo string, e.g. `"mod+k"` (`mod` = Cmd on macOS,
+     * Ctrl elsewhere) or `"ctrl+shift+p"` - see `src/shortcuts.ts` for
+     * the parser/matcher/recorder this is built and read with. */
+    commandPalette: string;
+  };
 }
 
 export interface AddonHttpFetchResult {

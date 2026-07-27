@@ -36,6 +36,7 @@ const FALLBACK_SETTINGS: AppSettings = {
   updates: { autoCheck: true, channel: "stable" },
   data: { telemetry: false },
   registry: { username: "", password: "", sharedHost: "" },
+  shortcuts: { commandPalette: "mod+k" },
 };
 
 interface SettingsContextValue {

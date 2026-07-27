@@ -100,6 +100,10 @@ const DEFAULT_SETTINGS = {
     // so it can't turn a bare Docker Hub reference into something else.
     sharedHost: "",
   },
+  shortcuts: {
+    // "mod" resolves to Cmd on macOS, Ctrl elsewhere - see src/shortcuts.ts.
+    commandPalette: "mod+k",
+  },
   // Addon enable/disable state, keyed by manifest id - the manifests
   // themselves are never stored here, only read live from disk each time
   // (see main.js's listAddonsFromDisk) so dropping/removing an addon

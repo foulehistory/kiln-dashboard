@@ -6,12 +6,13 @@ import BehaviorSection from "./settings/BehaviorSection";
 import NotificationsSection from "./settings/NotificationsSection";
 import LogsSection from "./settings/LogsSection";
 import TerminalSection from "./settings/TerminalSection";
+import ShortcutsSection from "./settings/ShortcutsSection";
 import ConnectionSection from "./settings/ConnectionSection";
 import UpdatesSection from "./settings/UpdatesSection";
 import DataSection from "./settings/DataSection";
 import RegistrySection from "./settings/RegistrySection";
 
-type Section = "appearance" | "behavior" | "notifications" | "logs" | "terminal" | "connection" | "updates" | "data" | "registry";
+type Section = "appearance" | "behavior" | "notifications" | "logs" | "terminal" | "shortcuts" | "connection" | "updates" | "data" | "registry";
 
 const SECTIONS: { key: Section; labelKey: TKey; Component: ComponentType }[] = [
   { key: "appearance", labelKey: "settings.section.appearance", Component: AppearanceSection },
@@ -19,6 +20,7 @@ const SECTIONS: { key: Section; labelKey: TKey; Component: ComponentType }[] = [
   { key: "notifications", labelKey: "settings.section.notifications", Component: NotificationsSection },
   { key: "logs", labelKey: "settings.section.logs", Component: LogsSection },
   { key: "terminal", labelKey: "settings.section.terminal", Component: TerminalSection },
+  { key: "shortcuts", labelKey: "settings.section.shortcuts", Component: ShortcutsSection },
   { key: "connection", labelKey: "settings.section.connection", Component: ConnectionSection },
   { key: "updates", labelKey: "settings.section.updates", Component: UpdatesSection },
   { key: "registry", labelKey: "settings.section.registry", Component: RegistrySection },
